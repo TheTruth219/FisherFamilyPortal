@@ -5,7 +5,7 @@ import os
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Header, Query
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
@@ -15,6 +15,7 @@ import logging
 import uuid
 import bcrypt
 import jwt
+import requests
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -27,6 +28,44 @@ api_router = APIRouter(prefix="/api")
 JWT_ALGORITHM = "HS256"
 CONTENT_ID = "portal_content"
 FAMILY_AUTH_ID = "family_auth"
+
+# ---------- object storage ----------
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "fisher-family-portal"
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
+storage_key = None
+
+
+def init_storage():
+    global storage_key
+    if storage_key:
+        return storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    storage_key = resp.json()["storage_key"]
+    return storage_key
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str):
+    key = init_storage()
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key}, timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
 # ---------- helpers ----------
@@ -80,6 +119,27 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Administrator access required")
     return user
+
+
+def user_from_token(token: Optional[str]) -> Optional[dict]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        return {"role": payload.get("role"), "email": payload.get("email", "")}
+    except jwt.InvalidTokenError:
+        return None
+
+
+MIME_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp", "pdf": "application/pdf",
+    "json": "application/json", "csv": "text/csv", "txt": "text/plain",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 
 # ---------- models ----------
@@ -164,6 +224,73 @@ async def submit_contact(body: ContactMessage, user: dict = Depends(get_current_
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.contact_messages.insert_one(doc)
     return {"ok": True, "id": doc["id"]}
+
+
+# ---------- files ----------
+@api_router.post("/files/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    ext = (file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin")
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File is too large (max 25 MB).")
+    content_type = file.content_type or MIME_TYPES.get(ext, "application/octet-stream")
+    file_id = str(uuid.uuid4())
+    path = f"{APP_NAME}/uploads/{file_id}.{ext}"
+    try:
+        result = put_object(path, data, content_type)
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=502, detail="Storage upload failed. Please try again.")
+    doc = {
+        "id": file_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.files.insert_one(doc)
+    backend_base = os.environ.get("FRONTEND_URL", "")
+    return {
+        "id": file_id,
+        "filename": file.filename,
+        "size": doc["size"],
+        "content_type": content_type,
+        "url": f"{backend_base}/api/files/{file_id}",
+    }
+
+
+@api_router.get("/files/{file_id}")
+async def download_file(
+    file_id: str,
+    request: Request,
+    authorization: str = Header(None),
+    auth: str = Query(None),
+):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token and auth:
+        token = auth
+    if not token:
+        token = request.cookies.get("access_token")
+    if user_from_token(token) is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    record = await db.files.find_one({"id": file_id, "is_deleted": False})
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        data, content_type = get_object(record["storage_path"])
+    except Exception as e:
+        logger.error(f"Download failed: {e}")
+        raise HTTPException(status_code=502, detail="Storage download failed.")
+    filename = record.get("original_filename", "file")
+    return Response(
+        content=data,
+        media_type=record.get("content_type", content_type),
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 app.include_router(api_router)
@@ -309,6 +436,12 @@ async def startup():
     if content_doc is None:
         await db.settings.insert_one({"_id": CONTENT_ID, "content": default_content(),
                                       "updated_at": datetime.now(timezone.utc).isoformat()})
+    # object storage
+    try:
+        init_storage()
+        logger.info("Storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
     logger.info("Startup seeding complete")
 
 

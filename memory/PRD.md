@@ -26,6 +26,7 @@ Build a simple, mobile-friendly private portal for authorized Fisher family memb
 - Admin edit mode: edit any field, add/remove list items, Save persists via PUT /api/content.
 - Contact form stores messages; role-based contacts shown.
 - Verified end-to-end (testing agent iteration_1: backend 100%, frontend 100%).
+- File & media storage (Emergent object storage): admin-only upload `POST /api/files/upload`, auth-gated view/download `GET /api/files/{id}` (cookie or `?auth=` token). Upload UI appears on every document/action link in admin edit mode (paste link OR upload file). Files tracked in `db.files` with soft-delete flag. (2026-07-29)
 
 ## Credentials
 See /app/memory/test_credentials.md
