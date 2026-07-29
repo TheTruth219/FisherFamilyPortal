@@ -1,0 +1,41 @@
+# Fisher Family Portal — PRD
+
+## Original Problem Statement
+Build a simple, mobile-friendly private portal for authorized Fisher family members. One secure starting point for: reunion info, family business, payments, meetings, shared documents, and announcements. MVP — keep structure extremely simple; easy for older members on a phone. No public marketing/history/directory/social features.
+
+## User Choices
+- Login: single shared family password
+- Admin edit mode: included
+- External document/action links: placeholder "#" (wired later)
+- Accent: deep navy blue
+- App name: "Fisher Family Portal"
+
+## Architecture
+- Frontend: React (CRA/craco), react-router, Tailwind, shadcn primitives, lucide icons, sonner toasts. Contexts: AuthContext, ContentContext. Editable.jsx provides in-place admin editing bound to content paths (lodash get/set).
+- Backend: FastAPI + MongoDB (motor). JWT in httpOnly cookie `access_token` (7 days). Content stored as a single seeded doc in `settings` (_id=portal_content). Family password hash in `settings` (_id=family_auth). Admin user in `users`. Contact submissions in `contact_messages`.
+- Roles: member (shared password) and admin (email+password, unlocks edit mode). Structured so business/committee levels can be added later.
+
+## Personas
+- General Family Member — reads reunion/payment/meeting/document info.
+- Administrator — edits all portal content inline.
+
+## Implemented (2026-07-29)
+- Login page: shared family password + "Administrator sign in" toggle; privacy notice; "Need Access or Login Help?" panel.
+- Dashboard: "Important Now" alerts (topic/explanation/deadline/action/button) + 5 nav cards + Contact/Help card.
+- Reunion, Family Business, Payments, Meetings, Documents, Contact pages — all sections per spec with editable placeholders.
+- Admin edit mode: edit any field, add/remove list items, Save persists via PUT /api/content.
+- Contact form stores messages; role-based contacts shown.
+- Verified end-to-end (testing agent iteration_1: backend 100%, frontend 100%).
+
+## Credentials
+See /app/memory/test_credentials.md
+
+## Backlog (not built)
+- P1: Individual access levels (Business/Committee members) gating documents & pages.
+- P1: Change family password / manage admins from an admin settings page.
+- P2: Admin inbox to view submitted contact messages.
+- P2: Migrate FastAPI on_event -> lifespan; add rate limiting & message length caps.
+- P2: Wire real SharePoint/Drive links into placeholder buttons.
+
+## Next Tasks
+- Await user review; wire real external links; consider access levels if requested.
