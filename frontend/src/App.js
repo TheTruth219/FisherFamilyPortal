@@ -1,54 +1,45 @@
-import { useEffect } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import { AuthProvider } from "@/context/AuthContext";
+import { ContentProvider } from "@/context/ContentContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import Reunion from "@/pages/Reunion";
+import FamilyBusiness from "@/pages/FamilyBusiness";
+import Payments from "@/pages/Payments";
+import Meetings from "@/pages/Meetings";
+import Documents from "@/pages/Documents";
+import Contact from "@/pages/Contact";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function Protected({ children }) {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <ProtectedRoute>
+      <ContentProvider>{children}</ContentProvider>
+    </ProtectedRoute>
   );
-};
+}
 
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Toaster position="top-center" richColors />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+            <Route path="/reunion" element={<Protected><Reunion /></Protected>} />
+            <Route path="/family-business" element={<Protected><FamilyBusiness /></Protected>} />
+            <Route path="/payments" element={<Protected><Payments /></Protected>} />
+            <Route path="/meetings" element={<Protected><Meetings /></Protected>} />
+            <Route path="/documents" element={<Protected><Documents /></Protected>} />
+            <Route path="/contact" element={<Protected><Contact /></Protected>} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </div>
   );
 }

@@ -1,0 +1,110 @@
+import React, { useState } from "react";
+import { FileText, Info, Lock } from "lucide-react";
+import Layout, { SectionCard } from "@/components/Layout";
+import { useContent, newId } from "@/context/ContentContext";
+import { EText, EArea, LinkButton, AddItemButton, DeleteItemButton } from "@/components/Editable";
+
+const CATEGORIES = ["Reunion", "Family Business", "Meetings", "Financial", "Legal and Governance", "Forms"];
+const ACCESS = ["All Members", "Business Members", "Committee Members", "Restricted"];
+
+function accessBadge(level) {
+  const styles = {
+    "All Members": "bg-green-100 text-green-800 border-green-300",
+    "Business Members": "bg-blue-100 text-blue-800 border-blue-300",
+    "Committee Members": "bg-purple-100 text-purple-800 border-purple-300",
+    Restricted: "bg-red-100 text-red-800 border-red-300",
+  };
+  return styles[level] || "bg-slate-100 text-slate-700 border-slate-300";
+}
+
+export default function Documents() {
+  const { content, editMode, update, addItem, removeItem } = useContent();
+  const [filter, setFilter] = useState("All");
+  if (!content) return null;
+  const docs = content.documents || [];
+
+  return (
+    <Layout title="Documents" subtitle="Shared document library for authorized family members." testId="documents-page">
+      <div className="bg-slate-100 border border-slate-200 rounded-xl p-5 mb-6 flex items-start gap-3" data-testid="documents-notice">
+        <Info className="w-6 h-6 text-blue-900 flex-shrink-0 mt-0.5" />
+        <p className="text-base text-slate-700 leading-relaxed">
+          Some documents may be stored in a separate secure document system and may require additional permission.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {["All", ...CATEGORIES].map((c) => (
+          <button
+            key={c}
+            data-testid={`doc-filter-${c.replace(/\s+/g, "-").toLowerCase()}`}
+            onClick={() => setFilter(c)}
+            className={`px-4 py-2 min-h-[44px] rounded-lg font-semibold border-2 transition-colors ${
+              filter === c ? "bg-blue-900 text-white border-blue-900" : "bg-white text-blue-900 border-blue-200 hover:border-blue-900"
+            }`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <SectionCard testId="documents-list">
+        <div className="space-y-4">
+          {docs.map((d, i) => {
+            if (filter !== "All" && d.category !== filter) return null;
+            return (
+              <div key={d.id} className="border-2 border-slate-200 rounded-xl p-5" data-testid={`document-${i}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <FileText className="w-6 h-6 text-blue-900 flex-shrink-0 mt-1" />
+                    <div className="min-w-0">
+                      <EText path={`documents.${i}.title`} className="text-xl font-bold text-slate-900" />
+                      <div className="mt-1"><EArea path={`documents.${i}.description`} className="text-base text-slate-700" rows={2} /></div>
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wide border rounded px-2 py-1 flex-shrink-0 ${accessBadge(d.access)}`}>
+                    {d.access === "Restricted" && <Lock className="w-3 h-3" />}
+                    {d.access}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid sm:grid-cols-3 gap-4">
+                  <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Document Date</div><EText path={`documents.${i}.date`} className="text-base text-slate-900" /></div>
+                  <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Last Updated</div><EText path={`documents.${i}.updated`} className="text-base text-slate-900" /></div>
+                  {editMode && (
+                    <>
+                      <div>
+                        <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Category</div>
+                        <select data-testid={`doc-category-${i}`} className="editable-input" value={d.category} onChange={(e) => update(`documents.${i}.category`, e.target.value)}>
+                          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Access Level</div>
+                        <select data-testid={`doc-access-${i}`} className="editable-input" value={d.access} onChange={(e) => update(`documents.${i}.access`, e.target.value)}>
+                          {ACCESS.map((a) => <option key={a}>{a}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-center gap-3 flex-wrap">
+                  <LinkButton label="View / Download" path={`documents.${i}.link`} variant="secondary" testId={`doc-view-${i}`} />
+                  <DeleteItemButton testId={`delete-doc-${i}`} onClick={() => removeItem("documents", i)} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6">
+          <AddItemButton
+            testId="add-document-btn"
+            label="Add Document"
+            onClick={() => addItem("documents", { id: newId(), title: "Document Link To Be Added", description: "", date: "To be added", updated: "To be added", access: "All Members", link: "#", category: "Reunion" })}
+          />
+        </div>
+      </SectionCard>
+    </Layout>
+  );
+}
