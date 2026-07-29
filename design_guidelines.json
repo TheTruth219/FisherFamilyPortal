@@ -1,0 +1,88 @@
+{
+  "app_name": "Fisher Family Portal",
+  "design_philosophy": "Maximum readability and ease-of-use for older adults on mobile. Restrained, professional, high contrast, large tap targets. Utility-first.",
+  "typography": {
+    "fonts": {
+      "headings": "Work Sans, sans-serif",
+      "body": "IBM Plex Sans, sans-serif"
+    },
+    "hierarchy": {
+      "h1": "text-3xl sm:text-4xl font-bold text-slate-950 tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-semibold text-slate-900",
+      "h3": "text-xl sm:text-2xl font-semibold text-slate-900",
+      "body": "text-lg sm:text-xl leading-relaxed text-slate-800",
+      "labels": "text-base font-semibold text-slate-700 tracking-wide uppercase"
+    }
+  },
+  "colors": {
+    "base": {
+      "background": "bg-slate-50",
+      "surface": "bg-white",
+      "header": "bg-slate-900"
+    },
+    "text": {
+      "primary": "text-slate-950",
+      "secondary": "text-slate-800",
+      "inverse": "text-white"
+    },
+    "accent": {
+      "primary": "bg-blue-900",
+      "primary_hover": "hover:bg-blue-800",
+      "ring": "focus:ring-blue-900",
+      "border": "border-blue-900"
+    },
+    "feedback": {
+      "alert_bg": "bg-red-50",
+      "alert_border": "border-red-700",
+      "alert_text": "text-red-900"
+    }
+  },
+  "grids_and_layouts": {
+    "spacing": "Generous. Use p-6, p-8. gap-6, gap-8.",
+    "mobile_first": true,
+    "dashboard": {
+      "alerts": "Full width at top. Highlighted with thick left border (border-l-8 border-red-700).",
+      "navigation_cards": "1 column on mobile, 2 columns on tablet, 3 on desktop. gap-6.",
+      "help_card": "Distinctive layout, spanning full width at bottom, highlighted background (bg-slate-100)."
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "w-full sm:w-auto min-h-[56px] text-lg font-bold rounded-lg bg-blue-900 text-white hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 focus:outline-none flex items-center justify-center transition-colors shadow-sm",
+      "secondary": "w-full sm:w-auto min-h-[56px] text-lg font-bold rounded-lg bg-white text-blue-900 border-2 border-blue-900 hover:bg-slate-50 focus:ring-4 focus:ring-blue-300 focus:outline-none flex items-center justify-center transition-colors"
+    },
+    "cards": {
+      "navigation": "bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-blue-900 hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center gap-4",
+      "informational": "bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+    },
+    "inputs": {
+      "text": "min-h-[56px] text-lg p-4 border-2 border-slate-300 rounded-lg focus:border-blue-900 focus:ring-2 focus:ring-blue-900 w-full bg-white text-slate-900"
+    }
+  },
+  "visual_enhancers": {
+    "icons": "lucide-react. Size: w-10 h-10 or w-12 h-12. Stroke width: 2. Color: text-blue-900.",
+    "shadows": "Minimal. Rely on borders (border-2) to separate content. High-contrast boundaries are easier for elderly eyes to distinguish than soft shadows.",
+    "transparency": "FORBIDDEN. Solid backgrounds only."
+  },
+  "accessibility": {
+    "tap_targets": "Minimum 48x48px for all clickable elements. 56px height preferred.",
+    "contrast": "Strict WCAG AA (4.5:1 min). Text must be dark on light backgrounds.",
+    "motion": "No decorative animations. Only functional state changes (color transitions).",
+    "focus": "Explicit visible focus rings on all interactive elements."
+  },
+  "testing": {
+    "data_testid": "MANDATORY on all interactive and key informational elements using kebab-case, role-based naming."
+  },
+  "universal_guidelines": {
+    "instructions_to_main_agent": [
+      "Use purely .js and .jsx syntax, no TypeScript types.",
+      "Do NOT use glassmorphism, transparent header backgrounds, or complex gradients.",
+      "Keep the visual language utilitarian but highly professional.",
+      "The 'Important Now' section must be immediately noticeable, left-aligned, with strong borders.",
+      "Ensure Shadcn components are modified to have larger hit areas, thicker borders, and larger fonts.",
+      "Every single interactive element MUST have a 'data-testid' attribute.",
+      "Left-align text inside content pages for easier reading; center-align only the main 5 Dashboard cards.",
+      "Limit colors to the defined palette. The Deep Navy Blue is the only accent color."
+    ]
+  }
+}
