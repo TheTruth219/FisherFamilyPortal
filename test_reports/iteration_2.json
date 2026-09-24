@@ -1,0 +1,41 @@
+{
+  "summary": "Full backend + frontend regression on the new magic-link auth + admin member management. Backend: 24/24 pytest cases pass (request-link generic response for authorized/unauthorized/invalid emails; verify sets httpOnly cookie + returns member; single-use enforcement returns 400; garbage token 400; /auth/me + logout; protected routes 401 without cookie; admin GET/POST/PATCH /members, duplicate email 409, resend-invite, admin-cannot-deactivate-self 400; non-admin member gets 403 on list/create members and PUT /content but can GET /content; deactivation bumps token_version and revokes the existing session (401)). Frontend: 12/12 Playwright checks pass (/login has email+Send Login Link and no password field, link-sent confirmation, /auth/verify?token=garbage shows verify-error + Back-to-sign-in, unauth /dashboard redirects to /login, valid magic-link lands on /dashboard, admin sees nav-card-members + edit-mode-toggle, /members invite creates a row, admin's own role/deactivate are disabled, Deactivate flips to Reactivate, contact form submits successfully, /documents renders).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/request-link", "issue": "Timing side-channel: the authorized branch enqueues a background email + DB insert; response time on authorized vs unauthorized emails may leak account existence even though the response body is identical. Consider always doing the same DB writes or a constant-time no-op."},
+      {"endpoint": "POST /api/auth/request-link", "issue": "Rate-limit uses magic_link_requests inserted BEFORE the count, so the current request itself counts toward the limit (threshold is >5 within 15min and >9 app-wide within 10min — works, just noting)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py still uses deprecated @app.on_event('startup'/'shutdown'); migrate to FastAPI lifespan handlers.",
+    "Startup seed doesn't self-heal: if the admin exists but is is_active=False (e.g. someone flipped it in DB), it's left inactive. Consider forcing is_active=True on seed for the seeded admin.",
+    "put_object / get_object use blocking `requests` inside an async FastAPI handler — will block the event loop under load. Switch to httpx.AsyncClient (already imported).",
+    "download_file's user_from_token does not verify the member exists or is still active — a deactivated user's JWT is still accepted for /api/files/{id} until it expires (unlike /auth/me which checks token_version). Reuse get_current_user semantics.",
+    "CORS allows only a single origin from FRONTEND_URL. If the app is ever hosted on multiple origins (custom domain + preview) it will silently break credentialed CORS. Support a comma-separated list.",
+    "MAX_UPLOAD_BYTES is enforced after fully reading the file into memory; a large upload can OOM the pod. Enforce via streaming or Content-Length pre-check.",
+    "server.py is 660+ lines mixing auth, email, storage, members, content, contact and files. Split into modules (auth.py, members.py, email.py, files.py) for maintainability.",
+    "MemberUpdate role validation runs after checking body.role is not None but not against `ROLES` for the current member's admin-self case — deactivating self returns 400 correctly, but a superadmin could still demote themselves from admin, locking the portal out of admin actions. Consider preventing self role change from admin.",
+    "GENERIC_LINK_RESPONSE is returned even when body validation triggers rate-limit; that's fine but the current request is also counted (see minor above)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: stephen@cloudpoweredtech.com (passwordless magic link). Mint a raw token via the DB helper in /app/memory/test_credentials.md — raw tokens are never stored, only sha256 hashes.",
+  "seed_data_creation": "Backend pytest creates transient members prefixed with 'test_' via API and cleans them up in teardown_class. Playwright creates one 'pwtest_<hex>@example.com' member via the invite flow and it is cleaned up post-run. Seeded admin left intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Backend tests need pymongo + python-dotenv (installed in root .venv). They mint magic-link tokens directly against Mongo (hash-only stored). The Playwright browser env has NO pymongo — mint the raw token via a bash helper first, then paste it into the script. Frontend testids of interest: login-page, email-input, send-link-btn, link-sent, verify-page, verify-error, back-to-login, dashboard-page, nav-card-members, edit-mode-toggle, members-admin-page, invite-first-name/last-name/email/role, invite-submit-btn, member-row-<email>, member-role-<email>, member-toggle-<email>, member-resend-<email>, contact-name/email/topic/message/phone, contact-success.",
+  "rca of the issue": "N/A — no bugs found in the new magic-link auth iteration."
+}

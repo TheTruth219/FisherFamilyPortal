@@ -268,9 +268,21 @@ def user_from_token(token: Optional[str]) -> Optional[dict]:
         return None
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
-        return {"sub": payload.get("sub"), "email": payload.get("email", "")}
+        return {"sub": payload.get("sub"), "email": payload.get("email", ""), "ver": payload.get("ver", 0)}
     except jwt.InvalidTokenError:
         return None
+
+
+async def active_member_from_token(token: Optional[str]) -> Optional[dict]:
+    payload = user_from_token(token)
+    if not payload:
+        return None
+    member = await db.members.find_one({"id": payload["sub"]})
+    if not member or not member.get("is_active", True):
+        return None
+    if payload.get("ver", 0) != member.get("token_version", 0):
+        return None
+    return member
 
 
 MIME_TYPES = {
@@ -413,6 +425,8 @@ async def update_member(member_id: str, body: MemberUpdate, user: dict = Depends
     if body.role is not None:
         if body.role not in ROLES:
             raise HTTPException(status_code=422, detail="Invalid role")
+        if member["id"] == user["id"] and body.role != "admin":
+            raise HTTPException(status_code=400, detail="You cannot remove your own administrator role.")
         updates["role"] = body.role
     if body.first_name is not None:
         updates["first_name"] = body.first_name.strip()
@@ -511,7 +525,7 @@ async def download_file(file_id: str, request: Request, authorization: str = Hea
         token = auth
     if not token:
         token = request.cookies.get("access_token")
-    if user_from_token(token) is None:
+    if await active_member_from_token(token) is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     record = await db.files.find_one({"id": file_id, "is_deleted": False})
     if not record:
@@ -644,7 +658,7 @@ async def startup():
             "last_name": "Administrator", "role": "admin", "is_active": True,
             "token_version": 0, "created_at": now, "updated_at": now,
         })
-    elif existing.get("role") != "admin":
+    elif existing.get("role") != "admin" or not existing.get("is_active", True):
         await db.members.update_one({"email": admin_email}, {"$set": {"role": "admin", "is_active": True}})
     # content seed
     content_doc = await db.settings.find_one({"_id": CONTENT_ID})

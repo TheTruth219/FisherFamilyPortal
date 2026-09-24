@@ -31,6 +31,14 @@ Build a simple, mobile-friendly private portal for authorized Fisher family memb
 ## Credentials
 See /app/memory/test_credentials.md
 
+## Auth (updated 2026-09-24) — Magic-link, invite-only
+- Passwordless **email magic-link** login (Resend managed email). Invite-only: only members added by an admin can sign in; unknown emails get a generic non-enumerating response.
+- Members collection: id, email, first_name, last_name, role (member|business_member|committee_member|admin), is_active, token_version, timestamps.
+- Admin member management (`/members`): invite (emails sign-in link), change role, deactivate/reactivate (bumps token_version → revokes live sessions), resend link. Admin cannot deactivate or demote self.
+- Seeded admin: stephen@cloudpoweredtech.com (self-heals to active admin on startup).
+- File downloads now re-check active member + token_version (deactivated users blocked immediately).
+- Verified: testing agent iteration_2 (backend 100%, frontend 100%) + manual security checks.
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.
