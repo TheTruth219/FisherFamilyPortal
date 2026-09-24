@@ -5,6 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ContentProvider } from "@/context/ContentContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "@/pages/Login";
+import Verify from "@/pages/Verify";
 import Dashboard from "@/pages/Dashboard";
 import Reunion from "@/pages/Reunion";
 import FamilyBusiness from "@/pages/FamilyBusiness";
@@ -12,6 +13,7 @@ import Payments from "@/pages/Payments";
 import Meetings from "@/pages/Meetings";
 import Documents from "@/pages/Documents";
 import Contact from "@/pages/Contact";
+import MembersAdmin from "@/pages/MembersAdmin";
 
 function Protected({ children }) {
   return (
@@ -29,6 +31,7 @@ function App() {
           <Toaster position="top-center" richColors />
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/auth/verify" element={<Verify />} />
             <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
             <Route path="/reunion" element={<Protected><Reunion /></Protected>} />
             <Route path="/family-business" element={<Protected><FamilyBusiness /></Protected>} />
@@ -36,6 +39,7 @@ function App() {
             <Route path="/meetings" element={<Protected><Meetings /></Protected>} />
             <Route path="/documents" element={<Protected><Documents /></Protected>} />
             <Route path="/contact" element={<Protected><Contact /></Protected>} />
+            <Route path="/members" element={<Protected><MembersAdmin /></Protected>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>

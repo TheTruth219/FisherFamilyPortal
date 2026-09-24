@@ -9,9 +9,11 @@ import {
   LifeBuoy,
   AlertCircle,
   Trash2,
+  UserCog,
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
+import { useAuth } from "@/context/AuthContext";
 import { EText, EArea, AddItemButton } from "@/components/Editable";
 
 const NAV = [
@@ -25,6 +27,7 @@ const NAV = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const { content, editMode, update, addItem, removeItem } = useContent();
+  const { isAdmin } = useAuth();
 
   if (!content) return null;
   const alerts = content.alerts || [];
@@ -155,6 +158,22 @@ export default function Dashboard() {
           <div className="text-base text-slate-600">Questions about access, payments, meetings, or documents</div>
         </div>
       </button>
+
+      {isAdmin && (
+        <button
+          data-testid="nav-card-members"
+          onClick={() => navigate("/members")}
+          className="mt-4 w-full bg-blue-50 border-2 border-blue-200 rounded-xl p-6 hover:border-blue-900 transition-all flex items-center gap-4 text-left"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center flex-shrink-0">
+            <UserCog className="w-8 h-8 text-blue-900" />
+          </div>
+          <div>
+            <div className="font-heading text-xl font-bold text-slate-900">Manage Members</div>
+            <div className="text-base text-slate-600">Invite family members, set roles, and manage access</div>
+          </div>
+        </button>
+      )}
     </Layout>
   );
 }
