@@ -350,11 +350,11 @@ class ContentUpdate(BaseModel):
 
 
 class ContactMessage(BaseModel):
-    name: str
+    name: str = Field(..., max_length=120)
     email: EmailStr
-    phone: Optional[str] = ""
-    topic: str
-    message: str
+    phone: Optional[str] = Field("", max_length=40)
+    topic: str = Field(..., max_length=200)
+    message: str = Field(..., max_length=5000)
 
 
 class HelpRequestUpdate(BaseModel):

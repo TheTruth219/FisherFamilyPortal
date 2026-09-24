@@ -285,3 +285,200 @@ class TestContact:
         }, timeout=15)
         assert r.status_code == 200
         assert r.json().get("ok") is True
+
+
+# ---------- help requests inbox (admin) ----------
+class TestHelpRequests:
+    _created_help_ids = []
+    _member_id = None
+    _member_email = None
+
+    @classmethod
+    def setup_class(cls):
+        email = f"test_helpmember_{uuid.uuid4().hex[:8]}@example.com"
+        now = datetime.now(timezone.utc).isoformat()
+        m = {"id": str(uuid.uuid4()), "email": email, "first_name": "H", "last_name": "M",
+             "role": "member", "is_active": True, "token_version": 0,
+             "created_at": now, "updated_at": now}
+        _db.members.insert_one(m)
+        cls._member_id = m["id"]
+        cls._member_email = email
+
+    @classmethod
+    def teardown_class(cls):
+        for hid in cls._created_help_ids:
+            _db.contact_messages.delete_one({"id": hid})
+        if cls._member_id:
+            _db.members.delete_one({"id": cls._member_id})
+
+    def test_help_requests_requires_admin(self):
+        # unauth
+        r = requests.get(f"{BASE_URL}/api/help-requests", timeout=15)
+        assert r.status_code == 401
+        # authenticated member
+        member_s = _login_session(self._member_email)
+        r2 = member_s.get(f"{BASE_URL}/api/help-requests", timeout=15)
+        assert r2.status_code == 403
+
+    def test_member_submits_contact_appears_in_inbox_and_no_mongo_id(self, admin_session):
+        member_s = _login_session(self._member_email)
+        topic = f"TEST_help_{uuid.uuid4().hex[:8]}"
+        r = member_s.post(f"{BASE_URL}/api/contact", json={
+            "name": "TEST_Member", "email": self._member_email, "phone": "",
+            "topic": topic, "message": "Please help with test"
+        }, timeout=15)
+        assert r.status_code == 200
+        hid = r.json()["id"]
+        self._created_help_ids.append(hid)
+
+        # Admin fetches inbox
+        r2 = admin_session.get(f"{BASE_URL}/api/help-requests", timeout=15)
+        assert r2.status_code == 200
+        items = r2.json()
+        assert isinstance(items, list)
+        # newest first: our item should be at or near top
+        match = next((it for it in items if it.get("id") == hid), None)
+        assert match is not None
+        assert match["topic"] == topic
+        assert match.get("status") == "new"
+        # NO Mongo _id leaked
+        for it in items:
+            assert "_id" not in it
+
+    def test_status_workflow_patch(self, admin_session):
+        # create one help request via contact
+        member_s = _login_session(self._member_email)
+        r = member_s.post(f"{BASE_URL}/api/contact", json={
+            "name": "TEST_Member", "email": self._member_email,
+            "topic": "TEST_status", "message": "workflow"
+        }, timeout=15)
+        hid = r.json()["id"]
+        self._created_help_ids.append(hid)
+
+        for st in ("in_progress", "resolved", "new"):
+            p = admin_session.patch(f"{BASE_URL}/api/help-requests/{hid}",
+                                    json={"status": st}, timeout=15)
+            assert p.status_code == 200
+        # persisted
+        items = admin_session.get(f"{BASE_URL}/api/help-requests", timeout=15).json()
+        match = next(it for it in items if it["id"] == hid)
+        assert match["status"] == "new"
+
+    def test_patch_invalid_status_422(self, admin_session):
+        # create one
+        member_s = _login_session(self._member_email)
+        r = member_s.post(f"{BASE_URL}/api/contact", json={
+            "name": "TEST", "email": self._member_email,
+            "topic": "TEST_invalid", "message": "x"
+        }, timeout=15)
+        hid = r.json()["id"]
+        self._created_help_ids.append(hid)
+        p = admin_session.patch(f"{BASE_URL}/api/help-requests/{hid}",
+                                json={"status": "bogus"}, timeout=15)
+        assert p.status_code == 422
+
+    def test_patch_missing_id_404(self, admin_session):
+        p = admin_session.patch(f"{BASE_URL}/api/help-requests/{uuid.uuid4()}",
+                                json={"status": "new"}, timeout=15)
+        assert p.status_code == 404
+
+    def test_member_cannot_patch_help_request(self, admin_session):
+        # create one as admin submission
+        r = admin_session.post(f"{BASE_URL}/api/contact", json={
+            "name": "TEST", "email": "t@t.com",
+            "topic": "TEST_403", "message": "x"
+        }, timeout=15)
+        hid = r.json()["id"]
+        self._created_help_ids.append(hid)
+        member_s = _login_session(self._member_email)
+        p = member_s.patch(f"{BASE_URL}/api/help-requests/{hid}",
+                           json={"status": "resolved"}, timeout=15)
+        assert p.status_code == 403
+
+
+# ---------- role-based file access ----------
+class TestFileAccess:
+    _member_ids = []
+    _file_ids = []
+
+    @classmethod
+    def setup_class(cls):
+        cls.members = {}
+        now = datetime.now(timezone.utc).isoformat()
+        for role in ("member", "business_member", "committee_member"):
+            email = f"test_role_{role}_{uuid.uuid4().hex[:6]}@example.com"
+            m = {"id": str(uuid.uuid4()), "email": email, "first_name": role, "last_name": "T",
+                 "role": role, "is_active": True, "token_version": 0,
+                 "created_at": now, "updated_at": now}
+            _db.members.insert_one(m)
+            cls._member_ids.append(m["id"])
+            cls.members[role] = email
+
+    @classmethod
+    def teardown_class(cls):
+        for mid in cls._member_ids:
+            _db.members.delete_one({"id": mid})
+        # cleanup files we injected
+        for fid in cls._file_ids:
+            _db.files.delete_one({"id": fid})
+            _db.settings.update_one(
+                {"_id": "portal_content"},
+                {"$pull": {"content.documents": {"link": {"$regex": fid}}}}
+            )
+
+    def _inject_file_with_access(self, access_level: str) -> str:
+        """Insert a fake file record and add a document referencing it with given access."""
+        fid = str(uuid.uuid4())
+        _db.files.insert_one({
+            "id": fid, "storage_path": f"nonexistent/{fid}.bin",
+            "original_filename": "test.bin", "content_type": "application/octet-stream",
+            "size": 1, "is_deleted": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        # add doc referencing this file to content
+        doc = {"id": str(uuid.uuid4()), "title": f"TEST_{access_level}",
+               "description": "test", "date": "", "updated": "",
+               "access": access_level, "link": f"/api/files/{fid}", "category": "TEST"}
+        _db.settings.update_one(
+            {"_id": "portal_content"},
+            {"$push": {"content.documents": doc}}
+        )
+        self._file_ids.append(fid)
+        return fid
+
+    def test_role_gating_on_file_download(self, admin_session):
+        # Create files at each access level
+        f_all = self._inject_file_with_access("All Members")
+        f_biz = self._inject_file_with_access("Business Members")
+        f_com = self._inject_file_with_access("Committee Members")
+        f_res = self._inject_file_with_access("Restricted")
+
+        sessions = {role: _login_session(email) for role, email in self.members.items()}
+        sessions["admin"] = admin_session
+
+        # Expected: role level >= required
+        # member=1, business_member=2, committee_member=3, admin=4
+        # All=1, Business=2, Committee=3, Restricted=4
+        cases = [
+            ("member", f_all, "allow"),
+            ("member", f_biz, "deny"),
+            ("member", f_res, "deny"),
+            ("business_member", f_biz, "allow"),
+            ("business_member", f_res, "deny"),
+            ("committee_member", f_com, "allow"),
+            ("committee_member", f_res, "deny"),
+            ("admin", f_res, "allow"),
+            ("admin", f_all, "allow"),
+        ]
+        for role, fid, expect in cases:
+            r = sessions[role].get(f"{BASE_URL}/api/files/{fid}", timeout=15, allow_redirects=False)
+            if expect == "deny":
+                assert r.status_code == 403, f"role={role} fid={fid} expected 403 got {r.status_code}"
+            else:
+                # allow path: file record exists but storage_path is fake, so we expect 502 (storage download failed) NOT 403/401/404
+                assert r.status_code in (200, 502), f"role={role} fid={fid} expected allow but got {r.status_code}: {r.text[:200]}"
+
+    def test_file_download_requires_auth(self):
+        fid = self._inject_file_with_access("All Members")
+        r = requests.get(f"{BASE_URL}/api/files/{fid}", timeout=15)
+        assert r.status_code == 401

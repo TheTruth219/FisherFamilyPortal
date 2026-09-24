@@ -62,6 +62,13 @@ See /app/memory/test_credentials.md
 - UI: "Demo Data" card on `/members` with a "Load Sample Reunion Data" button (confirm dialog). Everything is labelled "SAMPLE"; admins overwrite with real info via Edit mode anytime.
 - Verified: endpoint 200, populates reunion/alerts/meetings/documents, SAMPLE markers present, list email preserved.
 
+## Admin Console & User/Permission Management (2026-09-24)
+- `/admin` (admin-only): management cards linking to each editable area + a **Help Requests inbox** reading messages from the Help/Contact form. Endpoints: GET `/api/help-requests` (admin, no _id leaked), PATCH `/api/help-requests/{id}` (status: new|in_progress|resolved, 422 invalid, 404 unknown); `/api/contact` now stamps status 'new'. Filters + "N new" badge in UI.
+- User & permission management on `/members` (admin-only): invite by email+role (emails magic-link), change role, deactivate/reactivate (revokes sessions), resend link, plus a **Roles & Permissions** reference explaining what each level unlocks. Duplicate invite -> 409.
+- Dashboard shows admin-only cards: Admin Console + Manage Members (hidden for non-admins).
+- Help/Contact messages bounded (name<=120, topic<=200, message<=5000, phone<=40) to protect the inbox.
+- Verified: testing agent iteration_3 — backend 100% (32 pytest cases incl. help-inbox authz + role-gated file access), frontend 100%, no bugs.
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.
