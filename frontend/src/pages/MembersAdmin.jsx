@@ -149,6 +149,26 @@ export default function MembersAdmin() {
         </form>
       </SectionCard>
 
+      <SectionCard title="Roles & Permissions" testId="roles-permissions-section">
+        <p className="text-base text-slate-700 leading-relaxed mb-4">
+          A member's role controls what they can open. Each level includes everything below it. Documents only open
+          for members whose role meets the document's access level (enforced on the server).
+        </p>
+        <div className="space-y-3">
+          {[
+            { role: "Member", desc: "Reunion, meetings, payments and general information; documents marked \"All Members\"." },
+            { role: "Business Member", desc: "Everything a Member sees, plus family business information and \"Business Members\" documents." },
+            { role: "Committee Member", desc: "Everything above, plus \"Committee Members\" documents and Restricted business documents." },
+            { role: "Administrator", desc: "Full access: edit all portal content, invite/manage members, and read help requests." },
+          ].map((r) => (
+            <div key={r.role} className="border border-slate-200 rounded-lg p-4">
+              <div className="font-heading text-lg font-bold text-slate-900">{r.role}</div>
+              <div className="text-base text-slate-600">{r.desc}</div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
       <SectionCard title="Family Email Notifications" testId="notify-section">
         <div className="flex items-start gap-3 mb-4">
           <Bell className="w-6 h-6 text-blue-900 flex-shrink-0 mt-0.5" />

@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Trash2,
   UserCog,
+  LayoutDashboard,
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
@@ -160,19 +161,34 @@ export default function Dashboard() {
       </button>
 
       {isAdmin && (
-        <button
-          data-testid="nav-card-members"
-          onClick={() => navigate("/members")}
-          className="mt-4 w-full bg-blue-50 border-2 border-blue-200 rounded-xl p-6 hover:border-blue-900 transition-all flex items-center gap-4 text-left"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center flex-shrink-0">
-            <UserCog className="w-8 h-8 text-blue-900" />
-          </div>
-          <div>
-            <div className="font-heading text-xl font-bold text-slate-900">Manage Members</div>
-            <div className="text-base text-slate-600">Invite family members, set roles, and manage access</div>
-          </div>
-        </button>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            data-testid="nav-card-admin"
+            onClick={() => navigate("/admin")}
+            className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 hover:border-blue-900 transition-all flex items-center gap-4 text-left"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center flex-shrink-0">
+              <LayoutDashboard className="w-8 h-8 text-blue-900" />
+            </div>
+            <div>
+              <div className="font-heading text-xl font-bold text-slate-900">Admin Console</div>
+              <div className="text-base text-slate-600">Manage content & read help requests</div>
+            </div>
+          </button>
+          <button
+            data-testid="nav-card-members"
+            onClick={() => navigate("/members")}
+            className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 hover:border-blue-900 transition-all flex items-center gap-4 text-left"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center flex-shrink-0">
+              <UserCog className="w-8 h-8 text-blue-900" />
+            </div>
+            <div>
+              <div className="font-heading text-xl font-bold text-slate-900">Manage Members</div>
+              <div className="text-base text-slate-600">Invite members, set roles, manage access</div>
+            </div>
+          </button>
+        </div>
       )}
     </Layout>
   );
