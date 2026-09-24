@@ -51,6 +51,12 @@ See /app/memory/test_credentials.md
 - Verified in preview: trigger sends 1 email (202) + logs; re-trigger sends 0 (dedupe); 401 on missing/wrong secret; crons.yml validated.
 - NOTE: daily cadence is production-safe (>15min rule). Reminder day-boundary uses America/New_York.
 
+## Document Access Control (2026-09-24)
+- Server-side role enforcement on file download (`GET /api/files/{id}`): the required level is resolved from the document listing that references the file, so the admin's chosen access label is the single source of truth.
+- Role levels: member(1) < business_member(2) < committee_member(3) < admin(4). Access labels: All Members(1), Business Members(2), Committee Members(3), Restricted(4/admin-only). Family Business `restricted:true` docs require committee_member+ (3). Insufficient role → 403.
+- UI also gates the View button (shows a lock + "Requires X access" / "Committee only") on Documents and Family Business pages; admins/edit-mode always see it. Backend is the real boundary.
+- Verified with real role sessions: Restricted → 200/403/403/403; Business → 200/200/200/403; FB-restricted → 200/200/403/403 (admin/committee/business/member).
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.

@@ -2,10 +2,14 @@ import React, { useState } from "react";
 import { FileText, Info, Lock } from "lucide-react";
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
+import { useAuth } from "@/context/AuthContext";
 import { EText, EArea, LinkButton, AddItemButton, DeleteItemButton } from "@/components/Editable";
 
 const CATEGORIES = ["Reunion", "Family Business", "Meetings", "Financial", "Legal and Governance", "Forms"];
 const ACCESS = ["All Members", "Business Members", "Committee Members", "Restricted"];
+const ROLE_LEVEL = { member: 1, business_member: 2, committee_member: 3, admin: 4 };
+const ACCESS_LEVEL = { "All Members": 1, "Business Members": 2, "Committee Members": 3, Restricted: 4 };
+const canOpen = (role, access) => (ROLE_LEVEL[role] || 1) >= (ACCESS_LEVEL[access] || 1);
 
 function accessBadge(level) {
   const styles = {
@@ -19,6 +23,7 @@ function accessBadge(level) {
 
 export default function Documents() {
   const { content, editMode, update, addItem, removeItem } = useContent();
+  const { auth } = useAuth();
   const [filter, setFilter] = useState("All");
   if (!content) return null;
   const docs = content.documents || [];
@@ -89,7 +94,13 @@ export default function Documents() {
                 </div>
 
                 <div className="mt-4 flex items-center gap-3 flex-wrap">
-                  <LinkButton label="View / Download" path={`documents.${i}.link`} variant="secondary" testId={`doc-view-${i}`} />
+                  {editMode || canOpen(auth?.role, d.access) ? (
+                    <LinkButton label="View / Download" path={`documents.${i}.link`} variant="secondary" testId={`doc-view-${i}`} />
+                  ) : (
+                    <span data-testid={`doc-locked-${i}`} className="inline-flex items-center gap-2 text-slate-500 font-semibold border-2 border-slate-200 rounded-lg px-4 py-3 min-h-[56px]">
+                      <Lock className="w-4 h-4" /> Requires {d.access} access
+                    </span>
+                  )}
                   <DeleteItemButton testId={`delete-doc-${i}`} onClick={() => removeItem("documents", i)} />
                 </div>
               </div>

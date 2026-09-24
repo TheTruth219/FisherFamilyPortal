@@ -286,6 +286,32 @@ async def active_member_from_token(token: Optional[str]) -> Optional[dict]:
     return member
 
 
+ROLE_LEVEL = {"member": 1, "business_member": 2, "committee_member": 3, "admin": 4}
+ACCESS_LEVEL = {"all members": 1, "business members": 2, "committee members": 3, "restricted": 4}
+_FILE_ID_RE = re.compile(r"/api/files/([0-9a-fA-F-]{36})")
+
+
+def _link_file_id(link: Optional[str]) -> Optional[str]:
+    if not link:
+        return None
+    m = _FILE_ID_RE.search(link)
+    return m.group(1) if m else None
+
+
+def required_level_for_file(content: dict, file_id: str) -> int:
+    """Access is authoritative from the document listings that reference the file.
+    Returns the most restrictive level found (default 1 = all members)."""
+    level = 1
+    for d in content.get("documents", []) or []:
+        if _link_file_id(d.get("link")) == file_id:
+            level = max(level, ACCESS_LEVEL.get((d.get("access") or "").strip().lower(), 1))
+    fb = content.get("familyBusiness", {}) or {}
+    for d in fb.get("documents", []) or []:
+        if _link_file_id(d.get("link")) == file_id:
+            level = max(level, 3 if d.get("restricted") else 1)
+    return level
+
+
 MIME_TYPES = {
     "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif",
     "webp": "image/webp", "pdf": "application/pdf", "json": "application/json",
@@ -595,11 +621,18 @@ async def download_file(file_id: str, request: Request, authorization: str = Hea
         token = auth
     if not token:
         token = request.cookies.get("access_token")
-    if await active_member_from_token(token) is None:
+    member = await active_member_from_token(token)
+    if member is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     record = await db.files.find_one({"id": file_id, "is_deleted": False})
     if not record:
         raise HTTPException(status_code=404, detail="File not found")
+    # Role-based access control: resolve required level from the document listing that references this file.
+    content_doc = await db.settings.find_one({"_id": CONTENT_ID})
+    content = (content_doc or {}).get("content", {})
+    required = required_level_for_file(content, file_id)
+    if ROLE_LEVEL.get(member.get("role"), 1) < required:
+        raise HTTPException(status_code=403, detail="You don't have permission to open this document.")
     try:
         data, content_type = get_object(record["storage_path"])
     except Exception as e:

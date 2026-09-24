@@ -3,10 +3,14 @@ import { Link } from "react-router-dom";
 import { FileText, HelpCircle, CreditCard, Users, Lock } from "lucide-react";
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
+import { useAuth } from "@/context/AuthContext";
 import { EText, EArea, LinkButton, AddItemButton, DeleteItemButton } from "@/components/Editable";
+
+const ROLE_LEVEL = { member: 1, business_member: 2, committee_member: 3, admin: 4 };
 
 export default function FamilyBusiness() {
   const { content, editMode, update, addItem, removeItem } = useContent();
+  const { auth } = useAuth();
   if (!content) return null;
   const fb = content.familyBusiness || {};
 
@@ -157,7 +161,13 @@ export default function FamilyBusiness() {
                   Restricted
                 </label>
               )}
-              <LinkButton label="View" path={`familyBusiness.documents.${i}.link`} variant="secondary" testId={`fb-doc-${i}`} />
+              {editMode || !d.restricted || (ROLE_LEVEL[auth?.role] || 1) >= 3 ? (
+                <LinkButton label="View" path={`familyBusiness.documents.${i}.link`} variant="secondary" testId={`fb-doc-${i}`} />
+              ) : (
+                <span data-testid={`fb-doc-locked-${i}`} className="inline-flex items-center gap-2 text-slate-500 font-semibold border-2 border-slate-200 rounded-lg px-3 py-2 min-h-[44px]">
+                  <Lock className="w-4 h-4" /> Committee only
+                </span>
+              )}
               <DeleteItemButton testId={`delete-fb-doc-${i}`} onClick={() => removeItem("familyBusiness.documents", i)} />
             </div>
           ))}
