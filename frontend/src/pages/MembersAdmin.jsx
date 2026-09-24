@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { UserPlus, Mail, ShieldAlert, Send, Bell } from "lucide-react";
+import { UserPlus, Mail, ShieldAlert, Send, Bell, Database } from "lucide-react";
 import { toast } from "sonner";
 import Layout, { SectionCard } from "@/components/Layout";
 import { api, formatApiErrorDetail } from "@/lib/api";
@@ -17,7 +17,8 @@ const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
 
 export default function MembersAdmin() {
   const { auth, isAdmin } = useAuth();
-  const { content, update, save, dirty, saving } = useContent();
+  const { content, update, save, dirty, saving, reload } = useContent();
+  const [loadingSample, setLoadingSample] = useState(false);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "member" });
@@ -82,6 +83,20 @@ export default function MembersAdmin() {
       toast.success(`Sign-in link sent to ${m.email}`);
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Could not send link");
+    }
+  };
+
+  const loadSample = async () => {
+    if (!window.confirm("Replace all current portal content with clearly-marked SAMPLE demo data? Your notification settings and members are kept. This is easy to overwrite later.")) return;
+    setLoadingSample(true);
+    try {
+      await api.post("/content/load-sample");
+      await reload();
+      toast.success("Sample data loaded");
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Could not load sample data");
+    } finally {
+      setLoadingSample(false);
     }
   };
 
@@ -217,6 +232,23 @@ export default function MembersAdmin() {
             ))}
           </div>
         )}
+      </SectionCard>
+
+      <SectionCard title="Demo Data" testId="demo-data-section">
+        <p className="text-base text-slate-700 leading-relaxed mb-4">
+          Load a fully-populated, clearly-marked <span className="font-semibold">SAMPLE</span> reunion, meetings,
+          payments, business matters and documents so you can see how a filled-in portal looks. Everything is
+          fictional and labelled "SAMPLE" — replace it with your real information anytime using Edit mode.
+        </p>
+        <button
+          data-testid="load-sample-btn"
+          onClick={loadSample}
+          disabled={loadingSample}
+          className="w-full sm:w-auto min-h-[56px] px-6 text-lg font-bold rounded-lg bg-white text-blue-900 border-2 border-blue-900 hover:bg-slate-50 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Database className="w-5 h-5" />
+          {loadingSample ? "Loading sample data…" : "Load Sample Reunion Data"}
+        </button>
       </SectionCard>
     </Layout>
   );

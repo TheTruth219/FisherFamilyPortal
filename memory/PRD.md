@@ -57,6 +57,11 @@ See /app/memory/test_credentials.md
 - UI also gates the View button (shows a lock + "Requires X access" / "Committee only") on Documents and Family Business pages; admins/edit-mode always see it. Backend is the real boundary.
 - Verified with real role sessions: Restricted → 200/403/403/403; Business → 200/200/200/403; FB-restricted → 200/200/403/403 (admin/committee/business/member).
 
+## Sample / Demo Data (2026-09-24)
+- Admin-only `POST /api/content/load-sample` replaces portal content with clearly-marked fictional SAMPLE data (2027 reunion, schedule, FAQs, business matters, payments, an upcoming + past meeting, documents with all access levels, role-based contacts). Preserves the configured notification list email; resets notified baseline so it does NOT email the family.
+- UI: "Demo Data" card on `/members` with a "Load Sample Reunion Data" button (confirm dialog). Everything is labelled "SAMPLE"; admins overwrite with real info via Edit mode anytime.
+- Verified: endpoint 200, populates reunion/alerts/meetings/documents, SAMPLE markers present, list email preserved.
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.

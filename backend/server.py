@@ -576,6 +576,21 @@ async def update_content(body: ContentUpdate, background_tasks: BackgroundTasks,
     return {"ok": True, "notified": len(new_items)}
 
 
+@api_router.post("/content/load-sample")
+async def load_sample(user: dict = Depends(require_admin)):
+    sample = sample_content()
+    existing = await db.settings.find_one({"_id": CONTENT_ID})
+    # preserve configured notification settings so demo data doesn't wipe them
+    if existing:
+        sample["notifications"] = (existing.get("content", {}) or {}).get("notifications") or sample["notifications"]
+    await db.settings.update_one(
+        {"_id": CONTENT_ID},
+        {"$set": {"content": sample, "notified_item_ids": all_notifiable_ids(sample),
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True)
+    return {"ok": True}
+
+
 # ---------- contact ----------
 @api_router.post("/contact")
 async def submit_contact(body: ContactMessage, user: dict = Depends(get_current_user)):
@@ -812,6 +827,153 @@ def default_content() -> dict:
             {"id": str(uuid.uuid4()), "role": "Family Treasurer", "description": "Payment questions.", "email": "treasurer@fisherfamily.portal"},
             {"id": str(uuid.uuid4()), "role": "Family Business Representative", "description": "Business questions.", "email": "business@fisherfamily.portal"},
             {"id": str(uuid.uuid4()), "role": "Document Administrator", "description": "Document requests.", "email": "documents@fisherfamily.portal"},
+        ],
+        "notifications": {"listEmail": "", "enabled": True},
+    }
+
+
+def sample_content() -> dict:
+    """Clearly-marked fictional demo data to showcase a fully populated portal."""
+    def nid():
+        return str(uuid.uuid4())
+    return {
+        "alerts": [
+            {"id": nid(), "topic": "SAMPLE — 2027 Reunion Registration Is Open",
+             "explanation": "Registration for the 2027 Fisher Family Reunion is now open. (Sample data)",
+             "deadline": "June 1, 2027", "action": "Register your household",
+             "buttonLabel": "Register", "buttonLink": "#"},
+            {"id": nid(), "topic": "SAMPLE — Reunion Payment Due",
+             "explanation": "Reunion fees are due before the payment deadline. (Sample data)",
+             "deadline": "June 15, 2027", "action": "Submit your reunion payment",
+             "buttonLabel": "Make a Payment", "buttonLink": "#"},
+            {"id": nid(), "topic": "SAMPLE — Summer Business Meeting Scheduled",
+             "explanation": "The annual family business meeting has been scheduled. (Sample data)",
+             "deadline": "July 15, 2027", "action": "Review the agenda and RSVP",
+             "buttonLabel": "View Meeting", "buttonLink": "#"},
+            {"id": nid(), "topic": "SAMPLE — New Meeting Minutes Posted",
+             "explanation": "Minutes from the spring meeting are available for review. (Sample data)",
+             "deadline": "No deadline", "action": "Read the minutes",
+             "buttonLabel": "View Document", "buttonLink": "#"},
+        ],
+        "reunion": {
+            "year": "2027", "dates": "July 16–18, 2027",
+            "location": "Lakeside Convention Center, Springfield (SAMPLE)",
+            "hotel": "Grand Lakeside Hotel (SAMPLE)",
+            "registrationDeadline": "June 1, 2027", "paymentDeadline": "June 15, 2027",
+            "adultFee": "$85 per adult (sample)", "childFee": "$40 per child under 12 (sample)",
+            "registrationLink": "#", "paymentLink": "#", "hotelLink": "#",
+            "contactRole": "Reunion Committee",
+            "overview": "SAMPLE DATA: Join us for the 2027 Fisher Family Reunion, a weekend of food, "
+                        "fellowship, and fun. All details below are fictional examples to show how the "
+                        "reunion page looks when fully filled in.",
+            "schedule": [
+                {"id": nid(), "time": "Fri 6:00 PM", "item": "Welcome dinner & registration (sample)"},
+                {"id": nid(), "time": "Sat 10:00 AM", "item": "Family group photo (sample)"},
+                {"id": nid(), "time": "Sat 12:00 PM", "item": "Lakeside picnic lunch (sample)"},
+                {"id": nid(), "time": "Sat 7:00 PM", "item": "Awards banquet (sample)"},
+                {"id": nid(), "time": "Sun 10:00 AM", "item": "Farewell brunch (sample)"},
+            ],
+            "documents": [
+                {"id": nid(), "title": "SAMPLE Reunion Packet (PDF)", "link": "#"},
+                {"id": nid(), "title": "SAMPLE Registration Form", "link": "#"},
+            ],
+            "faqs": [
+                {"id": nid(), "q": "How do I register my family?",
+                 "a": "SAMPLE: Use the Register button above and complete one form per household."},
+                {"id": nid(), "q": "Are children required to pay?",
+                 "a": "SAMPLE: Children under 12 pay the reduced child fee; infants are free."},
+                {"id": nid(), "q": "What is the hotel room rate?",
+                 "a": "SAMPLE: A discounted family rate is available at the Grand Lakeside Hotel until June 1."},
+            ],
+        },
+        "familyBusiness": {
+            "intro": "SAMPLE DATA: This section provides authorized family members with current information "
+                     "about family business matters, responsibilities, decisions and supporting documents. "
+                     "The items below are fictional examples.",
+            "matters": [
+                {"id": nid(), "title": "SAMPLE — Lakeside Property Maintenance",
+                 "background": "The family-owned lakeside property is due for its annual maintenance review.",
+                 "status": "In progress", "action": "Approve the maintenance budget",
+                 "deadline": "August 30, 2027", "responsible": "Property Committee", "documentLink": "#"},
+                {"id": nid(), "title": "SAMPLE — Scholarship Fund Renewal",
+                 "background": "The annual family scholarship fund is up for renewal and member input is requested.",
+                 "status": "Open for input", "action": "Submit nominations",
+                 "deadline": "September 15, 2027", "responsible": "Scholarship Committee", "documentLink": "#"},
+            ],
+            "structure": [
+                {"id": nid(), "entity": "Lakeside Property (SAMPLE)", "group": "Property Committee",
+                 "role": "Oversight & upkeep", "authority": "Committee vote", "contact": "property@example.com"},
+                {"id": nid(), "entity": "Scholarship Fund (SAMPLE)", "group": "Scholarship Committee",
+                 "role": "Awards & renewals", "authority": "Committee vote", "contact": "scholarship@example.com"},
+                {"id": nid(), "entity": "General Finances (SAMPLE)", "group": "Family Treasurer",
+                 "role": "Bookkeeping", "authority": "Reports to committee", "contact": "treasurer@example.com"},
+            ],
+            "obligations": [
+                {"id": nid(), "purpose": "Property insurance (SAMPLE)", "amount": "$1,200 / year (sample)",
+                 "responsible": "Property Committee", "dueDate": "January 1, 2027",
+                 "method": "Committee account", "contact": "treasurer@example.com"},
+                {"id": nid(), "purpose": "Scholarship contribution (SAMPLE)", "amount": "Voluntary (sample)",
+                 "responsible": "All members", "dueDate": "Rolling",
+                 "method": "Payments page", "contact": "treasurer@example.com"},
+            ],
+            "documents": [
+                {"id": nid(), "title": "SAMPLE Business Summary", "link": "#", "restricted": False},
+                {"id": nid(), "title": "SAMPLE Spring Meeting Minutes", "link": "#", "restricted": False},
+                {"id": nid(), "title": "SAMPLE Financial Report (Restricted)", "link": "#", "restricted": True},
+                {"id": nid(), "title": "SAMPLE Property Documents (Restricted)", "link": "#", "restricted": True},
+                {"id": nid(), "title": "SAMPLE Proposal: Scholarship Renewal", "link": "#", "restricted": False},
+            ],
+        },
+        "payments": {
+            "reunion": [
+                {"id": nid(), "name": "SAMPLE — Reunion Registration Fee", "purpose": "Covers reunion attendance",
+                 "amount": "$85 per adult (sample)", "whoPays": "Each attending household",
+                 "dueDate": "June 15, 2027", "link": "#",
+                 "instructions": "SAMPLE: Pay online via the button, or mail a check to the Treasurer.",
+                 "confirmation": "You'll receive an emailed receipt.", "contactRole": "Family Treasurer"},
+            ],
+            "business": [
+                {"id": nid(), "name": "SAMPLE — Scholarship Fund Contribution", "purpose": "Supports the family scholarship",
+                 "amount": "Any amount (sample)", "whoPays": "Voluntary — all members",
+                 "dueDate": "Rolling", "link": "#",
+                 "instructions": "SAMPLE: Contributions are optional and tax-year dependent.",
+                 "confirmation": "You'll receive an emailed receipt.", "contactRole": "Family Treasurer"},
+            ],
+        },
+        "meetings": {
+            "upcoming": [
+                {"id": nid(), "name": "SAMPLE — 2027 Summer Business Meeting", "date": "July 16, 2027",
+                 "time": "7:00 PM ET", "location": "#", "attendees": "All members welcome; business members voting",
+                 "purpose": "Annual review and budget approval",
+                 "agenda": "SAMPLE: 1) Welcome  2) Treasurer's report  3) Property budget vote  4) Scholarship renewal  5) Open floor",
+                 "documents": "#", "meetingDate": "2027-07-16", "rsvpDeadline": "July 10, 2027"},
+            ],
+            "past": [
+                {"id": nid(), "date": "March 12, 2027", "name": "SAMPLE — Spring Planning Meeting",
+                 "minutes": "#", "decisions": "SAMPLE: Approved reunion dates and venue.",
+                 "actionItems": "SAMPLE: Committee to finalize hotel block by April 1.", "documents": "#"},
+            ],
+        },
+        "documents": [
+            {"id": nid(), "title": "SAMPLE Reunion Packet", "description": "Everything you need for the 2027 reunion.",
+             "date": "May 2027", "updated": "May 2027", "access": "All Members", "link": "#", "category": "Reunion"},
+            {"id": nid(), "title": "SAMPLE Registration Form", "description": "Household registration form.",
+             "date": "May 2027", "updated": "May 2027", "access": "All Members", "link": "#", "category": "Forms"},
+            {"id": nid(), "title": "SAMPLE Spring Meeting Minutes", "description": "Minutes from the March meeting.",
+             "date": "March 2027", "updated": "March 2027", "access": "All Members", "link": "#", "category": "Meetings"},
+            {"id": nid(), "title": "SAMPLE Business Summary", "description": "Overview of current business matters.",
+             "date": "April 2027", "updated": "April 2027", "access": "Business Members", "link": "#", "category": "Family Business"},
+            {"id": nid(), "title": "SAMPLE Financial Report", "description": "Summary financial report (restricted).",
+             "date": "April 2027", "updated": "April 2027", "access": "Restricted", "link": "#", "category": "Financial"},
+            {"id": nid(), "title": "SAMPLE Governance Guidelines", "description": "Family governance guidelines.",
+             "date": "2026", "updated": "2026", "access": "Committee Members", "link": "#", "category": "Legal and Governance"},
+        ],
+        "contacts": [
+            {"id": nid(), "role": "Portal Administrator", "description": "Login and access help (sample).", "email": "admin@example.com"},
+            {"id": nid(), "role": "Reunion Committee", "description": "Reunion questions (sample).", "email": "reunion@example.com"},
+            {"id": nid(), "role": "Family Treasurer", "description": "Payment questions (sample).", "email": "treasurer@example.com"},
+            {"id": nid(), "role": "Family Business Representative", "description": "Business questions (sample).", "email": "business@example.com"},
+            {"id": nid(), "role": "Document Administrator", "description": "Document requests (sample).", "email": "documents@example.com"},
         ],
         "notifications": {"listEmail": "", "enabled": True},
     }
