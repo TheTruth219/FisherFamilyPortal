@@ -15,6 +15,17 @@ const ROLES = [
 
 const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
 
+const TIMEZONES = [
+  { value: "America/New_York", label: "Eastern — New York" },
+  { value: "America/Chicago", label: "Central — Chicago" },
+  { value: "America/Denver", label: "Mountain — Denver" },
+  { value: "America/Phoenix", label: "Arizona (no DST)" },
+  { value: "America/Los_Angeles", label: "Pacific — Los Angeles" },
+  { value: "America/Anchorage", label: "Alaska — Anchorage" },
+  { value: "Pacific/Honolulu", label: "Hawaii — Honolulu" },
+  { value: "UTC", label: "UTC" },
+];
+
 export default function MembersAdmin() {
   const { auth, isAdmin } = useAuth();
   const { content, update, save, dirty, saving, reload } = useContent();
@@ -210,6 +221,16 @@ export default function MembersAdmin() {
           value={content?.notifications?.listEmail || ""}
           onChange={(e) => update("notifications.listEmail", e.target.value)}
         />
+        <label className="block text-base font-semibold text-slate-700 mb-2 mt-4">Reminder time zone</label>
+        <select
+          data-testid="notify-timezone"
+          className={inputClass}
+          value={content?.notifications?.timezone || "America/New_York"}
+          onChange={(e) => update("notifications.timezone", e.target.value)}
+        >
+          {TIMEZONES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <p className="text-sm text-slate-500 mt-1">Meeting reminders are sent the day before a meeting, based on this time zone.</p>
         <label className="flex items-center gap-3 mt-4 text-base text-slate-800">
           <input
             type="checkbox"

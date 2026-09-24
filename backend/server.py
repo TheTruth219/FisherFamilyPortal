@@ -729,7 +729,12 @@ async def process_meeting_reminders():
         logger.info("Meeting reminders: notifications disabled or no list email; nothing sent")
         return
     from zoneinfo import ZoneInfo
-    tz = ZoneInfo("America/New_York")
+    tzname = (notif.get("timezone") or "America/New_York")
+    try:
+        tz = ZoneInfo(tzname)
+    except Exception:
+        logger.warning(f"Unknown reminder timezone {tzname!r}; falling back to America/New_York")
+        tz = ZoneInfo("America/New_York")
     tomorrow = (datetime.now(tz).date() + timedelta(days=1)).isoformat()
     upcoming = (content.get("meetings") or {}).get("upcoming") or []
     for mtg in upcoming:
@@ -859,7 +864,7 @@ def default_content() -> dict:
             {"id": str(uuid.uuid4()), "role": "Family Business Representative", "description": "Business questions.", "email": "business@fisherfamily.portal"},
             {"id": str(uuid.uuid4()), "role": "Document Administrator", "description": "Document requests.", "email": "documents@fisherfamily.portal"},
         ],
-        "notifications": {"listEmail": "", "enabled": True},
+        "notifications": {"listEmail": "", "enabled": True, "timezone": "America/New_York"},
     }
 
 
@@ -1006,7 +1011,7 @@ def sample_content() -> dict:
             {"id": nid(), "role": "Family Business Representative", "description": "Business questions (sample).", "email": "business@example.com"},
             {"id": nid(), "role": "Document Administrator", "description": "Document requests (sample).", "email": "documents@example.com"},
         ],
-        "notifications": {"listEmail": "", "enabled": True},
+        "notifications": {"listEmail": "", "enabled": True, "timezone": "America/New_York"},
     }
 
 
@@ -1040,8 +1045,12 @@ async def startup():
     else:
         migrate = {}
         content = content_doc["content"]
-        if "notifications" not in content:
-            content["notifications"] = {"listEmail": "", "enabled": True}
+        notif = content.get("notifications")
+        if notif is None:
+            content["notifications"] = {"listEmail": "", "enabled": True, "timezone": "America/New_York"}
+            migrate["content"] = content
+        elif "timezone" not in notif:
+            notif["timezone"] = "America/New_York"
             migrate["content"] = content
         if "notified_item_ids" not in content_doc:
             # baseline: treat everything already present as already-announced
