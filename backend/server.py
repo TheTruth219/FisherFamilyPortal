@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 import jwt
 import requests
 import httpx
+import bcrypt
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -206,8 +207,7 @@ async def send_magic_link_email(to_email: str, first_name: str, token: str, invi
 
 
 # ---------- auth helpers ----------
-def get_jwt_secret() -> str:
-    return os.environ["JWT_SECRET"]
+def get_jwt_secret() -> str:    return os.environ["JWT_SECRET"]
 
 
 def create_access_token(user_id: str, email: str, token_version: int = 0) -> str:
@@ -362,6 +362,26 @@ class HelpRequestUpdate(BaseModel):
     status: str
 
 
+class PasswordLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class SetPassword(BaseModel):
+    password: str = Field(..., min_length=8, max_length=200)
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
 GENERIC_LINK_RESPONSE = {"message": "If that email belongs to an authorized family member, a sign-in link has been sent."}
 
 
@@ -406,9 +426,43 @@ async def verify(body: VerifyToken, response: Response):
     return public_member(member)
 
 
+@api_router.post("/auth/login")
+async def password_login(body: PasswordLogin, request: Request, response: Response):
+    email = body.email.lower().strip()
+    ip = request.client.host if request.client else "unknown"
+    identifier = f"{ip}:{email}"
+    now = datetime.now(timezone.utc)
+    window = now - timedelta(minutes=15)
+    fails = await db.login_attempts.count_documents({"email": email, "created_at": {"$gt": window}})
+    if fails >= 5:
+        raise HTTPException(status_code=429, detail="Too many attempts. Please wait 15 minutes or use an email sign-in link.")
+    member = await db.members.find_one({"email": email})
+    ok = bool(member and member.get("is_active", True) and member.get("password_hash")
+              and verify_password(body.password, member["password_hash"]))
+    if not ok:
+        await db.login_attempts.insert_one({"identifier": identifier, "email": email, "created_at": now})
+        raise HTTPException(status_code=401, detail="Incorrect email or password. First-time members should use an email sign-in link, then set a password.")
+    await db.login_attempts.delete_many({"email": email})
+    token = create_access_token(member["id"], member["email"], member.get("token_version", 0))
+    set_auth_cookie(response, token)
+    return public_member(member)
+
+
+@api_router.post("/auth/set-password")
+async def set_password(body: SetPassword, user: dict = Depends(get_current_user)):
+    await db.members.update_one(
+        {"id": user["id"]},
+        {"$set": {"password_hash": hash_password(body.password),
+                  "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"ok": True}
+
+
 @api_router.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
-    return user
+    member = await db.members.find_one({"id": user["id"]})
+    result = public_member(member) if member else user
+    result["has_password"] = bool(member and member.get("password_hash"))
+    return result
 
 
 @api_router.post("/auth/logout")
@@ -1023,6 +1077,9 @@ async def startup():
     await db.magic_link_requests.create_index("email")
     await db.magic_link_requests.create_index("created_at", expireAfterSeconds=900)
     await db.cron_runs.create_index("created_at", expireAfterSeconds=604800)
+    await db.login_attempts.create_index("identifier")
+    await db.login_attempts.create_index("email")
+    await db.login_attempts.create_index("created_at", expireAfterSeconds=1800)
     # admin seed (magic-link, no password)
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     existing = await db.members.find_one({"email": admin_email})

@@ -73,6 +73,12 @@ See /app/memory/test_credentials.md
 - Admins can edit a member's first name, last name, AND email via an "Edit" button on each row (`/members`) opening a modal → PATCH `/api/members/{id}`. Email changes are lowercased and uniqueness-checked (409 on clash); future magic-link sign-ins go to the new email.
 - Verified: name+email update → 200; duplicate email → 409; modal renders/saves.
 
+## Email + Password Login (2026-09-24)
+- Added password login ALONGSIDE magic link. Endpoints: POST `/api/auth/login` {email,password} (bcrypt, generic 401, brute-force lockout keyed on email — 5 fails/15min → 429), POST `/api/auth/set-password` (authenticated), and `/api/auth/me` now returns `has_password`. `login_attempts` collection with TTL.
+- Invite-only path: member signs in via magic link → sets a password on the new `/account` page → thereafter can use email+password. Magic link remains the recovery path (no separate reset flow — a locked-out/forgetful member just uses an email link, then resets from Account).
+- Frontend: Login has two modes (Password / Email link) with a toggle; new `/account` page (Set/Change Password); "Account" link added to the header.
+- Verified: login before set→401, set-password <8→422 / ok→200, correct→200, wrong→401, brute force five 401s→429, locked→429, cleared→200. bcrypt hashes stored on member docs.
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.

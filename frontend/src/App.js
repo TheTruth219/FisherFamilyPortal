@@ -15,6 +15,7 @@ import Documents from "@/pages/Documents";
 import Contact from "@/pages/Contact";
 import MembersAdmin from "@/pages/MembersAdmin";
 import AdminHome from "@/pages/AdminHome";
+import Account from "@/pages/Account";
 
 function Protected({ children }) {
   return (
@@ -42,6 +43,7 @@ function App() {
             <Route path="/contact" element={<Protected><Contact /></Protected>} />
             <Route path="/members" element={<Protected><MembersAdmin /></Protected>} />
             <Route path="/admin" element={<Protected><AdminHome /></Protected>} />
+            <Route path="/account" element={<Protected><Account /></Protected>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
