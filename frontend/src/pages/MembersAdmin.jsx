@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { UserPlus, Mail, ShieldAlert, Send, Bell, Database } from "lucide-react";
+import { UserPlus, Mail, ShieldAlert, Send, Bell, Database, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import Layout, { SectionCard } from "@/components/Layout";
 import { api, formatApiErrorDetail } from "@/lib/api";
@@ -19,6 +19,9 @@ export default function MembersAdmin() {
   const { auth, isAdmin } = useAuth();
   const { content, update, save, dirty, saving, reload } = useContent();
   const [loadingSample, setLoadingSample] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", email: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "member" });
@@ -83,6 +86,26 @@ export default function MembersAdmin() {
       toast.success(`Sign-in link sent to ${m.email}`);
     } catch (err) {
       toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Could not send link");
+    }
+  };
+
+  const openEdit = (m) => {
+    setEditForm({ first_name: m.first_name || "", last_name: m.last_name || "", email: m.email });
+    setEditing(m);
+  };
+
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    setSavingEdit(true);
+    try {
+      await api.patch(`/members/${editing.id}`, editForm);
+      toast.success("Member details updated");
+      setEditing(null);
+      load();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Could not update member");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -231,6 +254,13 @@ export default function MembersAdmin() {
                   {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
                 <button
+                  data-testid={`member-edit-${m.email}`}
+                  onClick={() => openEdit(m)}
+                  className="min-h-[48px] px-4 rounded-lg font-semibold border-2 border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors inline-flex items-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </button>
+                <button
                   data-testid={`member-resend-${m.email}`}
                   onClick={() => resend(m)}
                   disabled={!m.is_active}
@@ -270,6 +300,42 @@ export default function MembersAdmin() {
           {loadingSample ? "Loading sample data…" : "Load Sample Reunion Data"}
         </button>
       </SectionCard>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" data-testid="edit-member-modal">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-heading text-2xl font-bold text-slate-900">Edit Member</h3>
+              <button data-testid="edit-member-close" onClick={() => setEditing(null)} className="p-2 rounded-lg hover:bg-slate-100">
+                <X className="w-6 h-6 text-slate-600" />
+              </button>
+            </div>
+            <form onSubmit={saveEdit} className="space-y-4">
+              <div>
+                <label className="block text-base font-semibold text-slate-700 mb-2">First Name</label>
+                <input data-testid="edit-first-name" className={inputClass} value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-base font-semibold text-slate-700 mb-2">Last Name</label>
+                <input data-testid="edit-last-name" className={inputClass} value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-base font-semibold text-slate-700 mb-2">Email</label>
+                <input data-testid="edit-email" type="email" required className={inputClass} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                <p className="text-sm text-slate-500 mt-1">Future sign-in links will be sent to this address.</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="submit" data-testid="edit-save-btn" disabled={savingEdit} className="flex-1 min-h-[52px] text-lg font-bold rounded-lg bg-blue-900 text-white hover:bg-blue-800 transition-colors disabled:opacity-60">
+                  {savingEdit ? "Saving…" : "Save Changes"}
+                </button>
+                <button type="button" data-testid="edit-cancel-btn" onClick={() => setEditing(null)} className="min-h-[52px] px-6 text-lg font-bold rounded-lg bg-white text-slate-700 border-2 border-slate-300 hover:bg-slate-50 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

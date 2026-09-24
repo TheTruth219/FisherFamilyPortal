@@ -69,6 +69,10 @@ See /app/memory/test_credentials.md
 - Help/Contact messages bounded (name<=120, topic<=200, message<=5000, phone<=40) to protect the inbox.
 - Verified: testing agent iteration_3 — backend 100% (32 pytest cases incl. help-inbox authz + role-gated file access), frontend 100%, no bugs.
 
+## Edit Member Details (2026-09-24)
+- Admins can edit a member's first name, last name, AND email via an "Edit" button on each row (`/members`) opening a modal → PATCH `/api/members/{id}`. Email changes are lowercased and uniqueness-checked (409 on clash); future magic-link sign-ins go to the new email.
+- Verified: name+email update → 200; duplicate email → 409; modal renders/saves.
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.

@@ -343,6 +343,7 @@ class MemberUpdate(BaseModel):
     is_active: Optional[bool] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
 
 
 class ContentUpdate(BaseModel):
@@ -463,6 +464,13 @@ async def update_member(member_id: str, body: MemberUpdate, user: dict = Depends
         updates["first_name"] = body.first_name.strip()
     if body.last_name is not None:
         updates["last_name"] = body.last_name.strip()
+    if body.email is not None:
+        new_email = body.email.lower().strip()
+        if new_email != member["email"]:
+            clash = await db.members.find_one({"email": new_email})
+            if clash and clash["id"] != member_id:
+                raise HTTPException(status_code=409, detail="Another member already uses that email.")
+            updates["email"] = new_email
     if body.is_active is not None:
         updates["is_active"] = body.is_active
         if body.is_active is False and member["id"] == user["id"]:
