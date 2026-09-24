@@ -463,6 +463,64 @@ async def resend_invite(member_id: str, background_tasks: BackgroundTasks, user:
 
 
 # ---------- content ----------
+_NOTIFY_PLACEHOLDERS = {"", "to be added", "new alert", "new meeting", "new payment",
+                        "document link to be added", "previous meeting", "new matter",
+                        "business matter title", "family business meeting"}
+
+
+def collect_notifiable(content: dict) -> list:
+    items = []
+    for a in content.get("alerts", []) or []:
+        items.append({"id": a.get("id"), "kind": "Announcement", "title": (a.get("topic") or "").strip()})
+    m = content.get("meetings", {}) or {}
+    for u in m.get("upcoming", []) or []:
+        items.append({"id": u.get("id"), "kind": "Meeting", "title": (u.get("name") or "").strip()})
+    for d in content.get("documents", []) or []:
+        items.append({"id": d.get("id"), "kind": "Document", "title": (d.get("title") or "").strip()})
+    return [it for it in items if it.get("id")]
+
+
+def all_notifiable_ids(content: dict) -> list:
+    return [it["id"] for it in collect_notifiable(content)]
+
+
+def item_is_meaningful(it: dict) -> bool:
+    return it["title"].strip().lower() not in _NOTIFY_PLACEHOLDERS
+
+
+async def send_content_notification(to_email: str, items: list) -> bool:
+    base = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    if not base.startswith("https://"):
+        logger.error("Content notification skipped: FRONTEND_URL is not https")
+        return False
+    if not to_email or "@" not in to_email:
+        logger.error("Content notification skipped: invalid distribution list email")
+        return False
+    link = f"{base}/dashboard"
+    groups = {}
+    for it in items:
+        groups.setdefault(it["kind"], []).append(it["title"])
+    blocks = ""
+    for kind, titles in groups.items():
+        lis = "".join(f'<li style="margin:4px 0">{escape(t)}</li>' for t in titles)
+        label = kind + ("s" if len(titles) > 1 else "")
+        blocks += (f'<p style="font-size:16px;margin:16px 0 4px"><strong>New {escape(label)}</strong></p>'
+                   f'<ul style="font-size:16px;color:#334155;margin:0;padding-left:20px">{lis}</ul>')
+    html = (
+        f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<p style="font-size:16px">Hello Fisher family,</p>'
+        f'<p style="font-size:16px">New information has been posted in the Fisher Family Portal:</p>'
+        f'{blocks}'
+        f'<p style="margin:24px 0"><a href="{escape(link)}" '
+        f'style="background:#1e3a8a;color:#ffffff;padding:14px 28px;border-radius:8px;'
+        f'text-decoration:none;font-size:16px;font-weight:bold">Open the family portal</a></p>'
+        f'<p style="font-size:12px;color:#94a3b8">Sent by {escape(EMAIL_FROM_NAME)} to the family distribution list. '
+        f'Sign in with your own email to view the details.</p>'
+        f'</td></tr></table>'
+    )
+    return await _send_email(to_email, "New in the Fisher Family Portal", html)
+
+
 @api_router.get("/content")
 async def get_content(user: dict = Depends(get_current_user)):
     doc = await db.settings.find_one({"_id": CONTENT_ID})
@@ -472,12 +530,23 @@ async def get_content(user: dict = Depends(get_current_user)):
 
 
 @api_router.put("/content")
-async def update_content(body: ContentUpdate, user: dict = Depends(require_admin)):
+async def update_content(body: ContentUpdate, background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):
+    old = await db.settings.find_one({"_id": CONTENT_ID}) or {}
+    notified = set(old.get("notified_item_ids", []))
+    new_content = body.content
+    new_items = [it for it in collect_notifiable(new_content)
+                 if it["id"] not in notified and item_is_meaningful(it)]
+    for it in new_items:
+        notified.add(it["id"])
     await db.settings.update_one(
         {"_id": CONTENT_ID},
-        {"$set": {"content": body.content, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"content": new_content, "notified_item_ids": list(notified),
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True)
-    return {"ok": True}
+    notif = new_content.get("notifications") or {}
+    if new_items and notif.get("enabled", True) and notif.get("listEmail"):
+        background_tasks.add_task(send_content_notification, notif["listEmail"], new_items)
+    return {"ok": True, "notified": len(new_items)}
 
 
 # ---------- contact ----------
@@ -638,6 +707,7 @@ def default_content() -> dict:
             {"id": str(uuid.uuid4()), "role": "Family Business Representative", "description": "Business questions.", "email": "business@fisherfamily.portal"},
             {"id": str(uuid.uuid4()), "role": "Document Administrator", "description": "Document requests.", "email": "documents@fisherfamily.portal"},
         ],
+        "notifications": {"listEmail": "", "enabled": True},
     }
 
 
@@ -663,8 +733,21 @@ async def startup():
     # content seed
     content_doc = await db.settings.find_one({"_id": CONTENT_ID})
     if content_doc is None:
-        await db.settings.insert_one({"_id": CONTENT_ID, "content": default_content(),
+        seeded = default_content()
+        await db.settings.insert_one({"_id": CONTENT_ID, "content": seeded,
+                                      "notified_item_ids": all_notifiable_ids(seeded),
                                       "updated_at": datetime.now(timezone.utc).isoformat()})
+    else:
+        migrate = {}
+        content = content_doc["content"]
+        if "notifications" not in content:
+            content["notifications"] = {"listEmail": "", "enabled": True}
+            migrate["content"] = content
+        if "notified_item_ids" not in content_doc:
+            # baseline: treat everything already present as already-announced
+            migrate["notified_item_ids"] = all_notifiable_ids(content)
+        if migrate:
+            await db.settings.update_one({"_id": CONTENT_ID}, {"$set": migrate})
     try:
         init_storage()
         logger.info("Storage initialized")

@@ -39,6 +39,11 @@ See /app/memory/test_credentials.md
 - File downloads now re-check active member + token_version (deactivated users blocked immediately).
 - Verified: testing agent iteration_2 (backend 100%, frontend 100%) + manual security checks.
 
+## New-Content Email Notifications (2026-09-24)
+- On admin save of content (PUT /api/content), the backend diffs newly-added announcements/meetings/documents by id (against `notified_item_ids` baseline) and, for genuinely new meaningful items, sends ONE email to the family distribution-list address (managed Resend). Never re-notifies edited/existing items; placeholder items are ignored.
+- Design: single send to a family group address (admin-configurable on `/members` → "Family Email Notifications") — respects the ~10 sends/10min shared-sender limit and avoids exposing member addresses. Individual 80-way fan-out is intentionally NOT done.
+- Verified: settings-only save → 0 emails; new announcement → 1 email (202 Accepted); re-save → 0 (no duplicates).
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.

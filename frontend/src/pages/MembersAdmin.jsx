@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { UserPlus, Mail, ShieldAlert, Send } from "lucide-react";
+import { UserPlus, Mail, ShieldAlert, Send, Bell } from "lucide-react";
 import { toast } from "sonner";
 import Layout, { SectionCard } from "@/components/Layout";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useContent } from "@/context/ContentContext";
 
 const ROLES = [
   { value: "member", label: "Member" },
@@ -16,6 +17,7 @@ const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
 
 export default function MembersAdmin() {
   const { auth, isAdmin } = useAuth();
+  const { content, update, save, dirty, saving } = useContent();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "member" });
@@ -130,6 +132,44 @@ export default function MembersAdmin() {
             </button>
           </div>
         </form>
+      </SectionCard>
+
+      <SectionCard title="Family Email Notifications" testId="notify-section">
+        <div className="flex items-start gap-3 mb-4">
+          <Bell className="w-6 h-6 text-blue-900 flex-shrink-0 mt-0.5" />
+          <p className="text-base text-slate-700 leading-relaxed">
+            When you post a new announcement, meeting, or document and save, the portal automatically emails your
+            family's distribution list. Use a group address (e.g. a Microsoft&nbsp;365 or Google group) that reaches
+            everyone — the portal sends one email to that address to protect privacy and stay within email limits.
+          </p>
+        </div>
+        <label className="block text-base font-semibold text-slate-700 mb-2">Family distribution list email</label>
+        <input
+          data-testid="notify-list-email"
+          type="email"
+          className={inputClass}
+          placeholder="family@yourdomain.com"
+          value={content?.notifications?.listEmail || ""}
+          onChange={(e) => update("notifications.listEmail", e.target.value)}
+        />
+        <label className="flex items-center gap-3 mt-4 text-base text-slate-800">
+          <input
+            type="checkbox"
+            data-testid="notify-enabled"
+            className="w-5 h-5"
+            checked={content?.notifications?.enabled ?? true}
+            onChange={(e) => update("notifications.enabled", e.target.checked)}
+          />
+          Send automatic notifications when new content is posted
+        </label>
+        <button
+          data-testid="notify-save-btn"
+          onClick={save}
+          disabled={saving || !dirty}
+          className="mt-5 w-full sm:w-auto min-h-[52px] px-6 text-lg font-bold rounded-lg bg-blue-900 text-white hover:bg-blue-800 transition-colors disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save Notification Settings"}
+        </button>
       </SectionCard>
 
       <SectionCard title={`Family Members (${members.length})`} testId="members-list">
