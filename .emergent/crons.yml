@@ -1,0 +1,9 @@
+crons:
+  - name: meeting-reminders
+    description: "Emails the family distribution list a reminder the day before each upcoming meeting's date"
+    cron: "0 13 * * *"
+    timezone: "America/New_York"
+    endpoint: "{{BASE_URL}}/api/cron/meeting-reminders"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

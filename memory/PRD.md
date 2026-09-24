@@ -44,6 +44,13 @@ See /app/memory/test_credentials.md
 - Design: single send to a family group address (admin-configurable on `/members` → "Family Email Notifications") — respects the ~10 sends/10min shared-sender limit and avoids exposing member addresses. Individual 80-way fan-out is intentionally NOT done.
 - Verified: settings-only save → 0 emails; new announcement → 1 email (202 Accepted); re-save → 0 (no duplicates).
 
+## Meeting Reminders (2026-09-24)
+- Scheduled via `.emergent/crons.yml` (`meeting-reminders`, daily 13:00 America/New_York) → POST `/api/cron/meeting-reminders`.
+- Cron endpoint: Bearer `WEBHOOK_CRON_SECRET` (constant-time compare), acks 2xx immediately, backgrounds the work, idempotent on X-Webhook-Id via `cron_runs` (TTL 7d).
+- Logic: finds upcoming meetings whose `meetingDate` (new ISO field, admin sets via date picker on Meetings page in edit mode) == tomorrow (America/New_York) and emails ONE reminder to the family distribution list; per-meeting dedupe via `reminders_sent` so it never double-sends. Skips when notifications disabled / no list email.
+- Verified in preview: trigger sends 1 email (202) + logs; re-trigger sends 0 (dedupe); 401 on missing/wrong secret; crons.yml validated.
+- NOTE: daily cadence is production-safe (>15min rule). Reminder day-boundary uses America/New_York.
+
 ## Backlog (not built)
 - P1: Individual access levels (Business/Committee members) gating documents & pages.
 - P1: Change family password / manage admins from an admin settings page.

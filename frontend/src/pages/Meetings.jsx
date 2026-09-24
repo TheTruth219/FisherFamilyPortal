@@ -3,10 +3,10 @@ import { Link } from "react-router-dom";
 import { CalendarClock, Video, FileText, HelpCircle, ListChecks } from "lucide-react";
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
-import { EText, EArea, LinkButton, AddItemButton, DeleteItemButton } from "@/components/Editable";
+import { EText, EArea, EDate, LinkButton, AddItemButton, DeleteItemButton } from "@/components/Editable";
 
 export default function Meetings() {
-  const { content, addItem, removeItem } = useContent();
+  const { content, editMode, addItem, removeItem } = useContent();
   if (!content) return null;
   const m = content.meetings || { upcoming: [], past: [] };
 
@@ -26,6 +26,13 @@ export default function Meetings() {
                 <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Who Should Attend</div><EText path={`meetings.upcoming.${i}.attendees`} /></div>
                 <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">RSVP Deadline</div><EText path={`meetings.upcoming.${i}.rsvpDeadline`} /></div>
               </div>
+              {editMode && (
+                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="text-sm font-semibold uppercase tracking-wide text-blue-900 mb-1">Reminder date (auto day-before email)</div>
+                  <EDate path={`meetings.upcoming.${i}.meetingDate`} testId={`meeting-date-${i}`} />
+                  <p className="text-sm text-slate-600 mt-1">A reminder email is sent to the family list the day before this date. Leave blank for no reminder.</p>
+                </div>
+              )}
               <div className="mt-3">
                 <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Purpose</div>
                 <EText path={`meetings.upcoming.${i}.purpose`} />

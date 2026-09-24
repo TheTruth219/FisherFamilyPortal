@@ -67,6 +67,21 @@ export function EText({ path, className = "text-lg text-slate-900", placeholder 
   );
 }
 
+export function EDate({ path, testId }) {
+  const { content, editMode, update } = useContent();
+  const value = get(content, path) || "";
+  if (!editMode) return null;
+  return (
+    <input
+      type="date"
+      data-testid={testId || `edit-${path}`}
+      className="editable-input"
+      value={value}
+      onChange={(e) => update(path, e.target.value)}
+    />
+  );
+}
+
 export function EArea({ path, className = "text-lg leading-relaxed text-slate-800", placeholder = "—", rows = 3 }) {
   const { content, editMode, update } = useContent();
   const value = get(content, path) ?? "";
@@ -82,8 +97,7 @@ export function EArea({ path, className = "text-lg leading-relaxed text-slate-80
   );
 }
 
-export function Field({ label, path }) {
-  return (
+export function Field({ label, path }) {  return (
     <div>
       <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">{label}</div>
       <EText path={path} />

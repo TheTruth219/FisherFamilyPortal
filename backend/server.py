@@ -39,6 +39,7 @@ JWT_ALGORITHM = "HS256"
 CONTENT_ID = "portal_content"
 ROLES = ["member", "business_member", "committee_member", "admin"]
 MAGIC_LINK_TTL_MIN = 20
+WEBHOOK_CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET", "")
 
 # ---------- object storage ----------
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
@@ -609,6 +610,78 @@ async def download_file(file_id: str, request: Request, authorization: str = Hea
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
+async def send_meeting_reminder(to_email: str, mtg: dict) -> bool:
+    base = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    if not base.startswith("https://") or "@" not in (to_email or ""):
+        logger.error("Meeting reminder skipped: bad config (FRONTEND_URL / list email)")
+        return False
+    link = f"{base}/meetings"
+    name = escape((mtg.get("name") or "Family Meeting").strip())
+
+    def row(label, value):
+        v = (value or "").strip()
+        return f'<p style="font-size:16px;margin:4px 0"><strong>{label}:</strong> {escape(v)}</p>' if v else ""
+
+    rows = (row("Date", mtg.get("date") or mtg.get("meetingDate"))
+            + row("Time", mtg.get("time"))
+            + row("Who should attend", mtg.get("attendees"))
+            + row("Purpose", mtg.get("purpose")))
+    html = (
+        f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<p style="font-size:16px">Hello Fisher family,</p>'
+        f'<p style="font-size:16px">This is a friendly reminder that <strong>{name}</strong> is scheduled for <strong>tomorrow</strong>.</p>'
+        f'{rows}'
+        f'<p style="margin:24px 0"><a href="{escape(link)}" '
+        f'style="background:#1e3a8a;color:#ffffff;padding:14px 28px;border-radius:8px;'
+        f'text-decoration:none;font-size:16px;font-weight:bold">View meeting details</a></p>'
+        f'<p style="font-size:12px;color:#94a3b8">Sent by {escape(EMAIL_FROM_NAME)} to the family distribution list.</p>'
+        f'</td></tr></table>'
+    )
+    return await _send_email(to_email, f"Reminder: {name} is tomorrow", html)
+
+
+async def process_meeting_reminders():
+    doc = await db.settings.find_one({"_id": CONTENT_ID})
+    if not doc:
+        return
+    content = doc.get("content", {})
+    notif = content.get("notifications") or {}
+    if not (notif.get("enabled", True) and notif.get("listEmail")):
+        logger.info("Meeting reminders: notifications disabled or no list email; nothing sent")
+        return
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("America/New_York")
+    tomorrow = (datetime.now(tz).date() + timedelta(days=1)).isoformat()
+    upcoming = (content.get("meetings") or {}).get("upcoming") or []
+    for mtg in upcoming:
+        if (mtg.get("meetingDate") or "").strip() != tomorrow:
+            continue
+        key = f"{mtg.get('id')}:{tomorrow}"
+        res = await db.reminders_sent.update_one(
+            {"_id": key}, {"$setOnInsert": {"at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+        if res.matched_count:  # already sent for this meeting/date
+            continue
+        await send_meeting_reminder(notif["listEmail"], mtg)
+        logger.info(f"Meeting reminder sent for {key}")
+
+
+@api_router.post("/cron/meeting-reminders")
+async def cron_meeting_reminders(request: Request, background_tasks: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    if not WEBHOOK_CRON_SECRET or not secrets.compare_digest(token, WEBHOOK_CRON_SECRET):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    run_id = request.headers.get("X-Webhook-Id") or ""
+    if run_id:
+        existing = await db.cron_runs.find_one({"_id": run_id})
+        if existing:
+            return {"ok": True, "duplicate": True}
+        await db.cron_runs.insert_one({"_id": run_id, "created_at": datetime.now(timezone.utc)})
+    background_tasks.add_task(process_meeting_reminders)
+    return {"ok": True}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -682,7 +755,7 @@ def default_content() -> dict:
         "meetings": {
             "upcoming": [{"id": str(uuid.uuid4()), "name": "Family Business Meeting", "date": P, "time": P,
                           "location": "#", "attendees": "Business members", "purpose": "To be announced",
-                          "agenda": "Agenda to be posted.", "documents": "#", "rsvpDeadline": P}],
+                          "agenda": "Agenda to be posted.", "documents": "#", "meetingDate": "", "rsvpDeadline": P}],
             "past": [{"id": str(uuid.uuid4()), "date": P, "name": "Previous Meeting", "minutes": "#",
                       "decisions": "To be added", "actionItems": "To be added", "documents": "#"}],
         },
@@ -718,6 +791,7 @@ async def startup():
     await db.magic_link_tokens.create_index("token_hash", unique=True)
     await db.magic_link_requests.create_index("email")
     await db.magic_link_requests.create_index("created_at", expireAfterSeconds=900)
+    await db.cron_runs.create_index("created_at", expireAfterSeconds=604800)
     # admin seed (magic-link, no password)
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     existing = await db.members.find_one({"email": admin_email})
