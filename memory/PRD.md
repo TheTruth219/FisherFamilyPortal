@@ -147,3 +147,13 @@ See /app/memory/test_credentials.md (admin thetruth219@gmail.com / FisherAdmin#2
 - Verification: production build successful; /app/test_reports/iteration_9.json PASS. Checked logo fidelity, symbol-only display, SVG serving/favicon, branding navigation, mobile drawer, accessibility labels and zero overflow at 1920x800 and 390x844. No new issues, test data or emails.
 - Backlog unchanged: per-member timezone reminder fan-out, year-end 1099 center. Optional enhancement: carry the chosen shield into generated PDF receipts/statements.
 
+## Meeting Template Sections (2026-06)
+- Request: "When editing meetings, there should be the ability to choose from a template of things to surface in the saved product... a description section... a link for somebody to view the recording." User choices: available on BOTH upcoming & past meetings; template menu = Description (text), Recording (link → 'View recording' button, opens new tab), Decisions Made (text); only filled sections shown in view mode; each added section removable.
+- Implementation: new `MeetingSections` component in frontend/src/pages/Meetings.jsx. Stores `meeting.sections = [{id, type, value}]` (type ∈ description|recording|decisions) on each upcoming/past meeting. Edit mode shows an "Add section from template" picker (data-testids add-section-<scope>-<mi>-<type>) + per-section remove (remove-section-<scope>-<mi>-<id>). View mode renders only non-empty sections. addItem seeds include sections:[]. No backend change (content is a loose dict; sections persist via PUT/GET /api/content). Existing fixed Decisions Made / Action Items on past meetings retained.
+- Verification: /app/test_reports/iteration_22.json PASS (100% frontend). Add/fill/remove/save/persist across reload all work; regressions (Teams scheduler, Purpose/Agenda, attach-document→Documents) clean. Test data cleaned up (sections=[]).
+
+## Session ops notes (2026-06)
+- Synced workspace to GitHub main (repo TheTruth219/FisherFamilyPortal) via manual file copy (platform GitHub is push-only; no pull-into-job). Added reportlab==5.0.1.
+- STRIPE_API_KEY added to backend/.env (Emergent shared TEST key sk_test) so deploy snapshot captures it; production needs a redeploy (and a real LIVE key for real payouts). STRIPE_WEBHOOK_SECRET not set.
+- Preview admin password reset to FisherAdmin2026! (stephen@cloudpoweredtech.com); see memory/test_credentials.md. Production admin seeds from ADMIN_EMAIL + ADMIN_PASSWORD secrets (both SET in prod).
+
