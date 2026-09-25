@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarClock, Video, FileText, HelpCircle, ListChecks, Send, Upload, Loader2, Trash2, Paperclip, Clock } from "lucide-react";
+import { CalendarClock, Video, FileText, HelpCircle, ListChecks, Send, Upload, Loader2, Trash2, Paperclip, Clock, Plus, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
@@ -162,6 +162,78 @@ function PastMeetingDocs({ i }) {
   );
 }
 
+const SECTION_TEMPLATES = [
+  { type: "description", label: "Description", icon: AlignLeft, kind: "text" },
+  { type: "recording", label: "Recording", icon: Video, kind: "link" },
+  { type: "decisions", label: "Decisions Made", icon: ListChecks, kind: "text" },
+];
+
+function MeetingSections({ scope, mi }) {
+  const { content, editMode, update } = useContent();
+  const meeting = content.meetings[scope][mi];
+  const sections = meeting.sections || [];
+  const basePath = `meetings.${scope}.${mi}.sections`;
+  const isReal = (v) => v && !/^#?$/.test(String(v).trim());
+
+  const addSection = (type) => update(basePath, [...sections, { id: newId(), type, value: "" }]);
+  const removeSection = (id) => update(basePath, sections.filter((s) => s.id !== id));
+
+  const visible = editMode ? sections : sections.filter((s) => isReal(s.value));
+  if (visible.length === 0 && !editMode) return null;
+
+  return (
+    <div className="mt-3 space-y-3">
+      {visible.map((s) => {
+        const tmpl = SECTION_TEMPLATES.find((t) => t.type === s.type) || { label: s.type, icon: FileText, kind: "text" };
+        const idx = sections.findIndex((x) => x.id === s.id);
+        const valuePath = `${basePath}.${idx}.value`;
+        const Icon = tmpl.icon;
+        return (
+          <div key={s.id} data-testid={`meeting-section-${scope}-${mi}-${s.id}`}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1"><Icon className="w-3.5 h-3.5" /> {tmpl.label}</div>
+              {editMode && (
+                <button type="button" aria-label={`Remove ${tmpl.label} section`} data-testid={`remove-section-${scope}-${mi}-${s.id}`} onClick={() => removeSection(s.id)} className="text-red-700 hover:bg-red-50 rounded p-1 flex-shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {tmpl.kind === "link" ? (
+              editMode ? (
+                <input data-testid={`edit-${valuePath}`} className="editable-input" placeholder="https://… paste a Teams/Zoom/YouTube recording link"
+                  value={s.value || ""} onChange={(e) => update(valuePath, e.target.value)} />
+              ) : (
+                <a href={s.value} target="_blank" rel="noreferrer" data-testid={`section-link-${scope}-${mi}-${s.id}`}
+                  className="inline-flex items-center gap-2 text-blue-900 font-semibold hover:underline min-h-[44px]">
+                  <Icon className="w-4 h-4 flex-shrink-0" /> View {tmpl.label.toLowerCase()}
+                </a>
+              )
+            ) : (
+              <EArea path={valuePath} rows={2} />
+            )}
+          </div>
+        );
+      })}
+      {editMode && (
+        <div className="border-t border-slate-200 pt-3">
+          <div className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1"><Plus className="w-4 h-4" /> Add section from template</div>
+          <div className="flex flex-wrap gap-2">
+            {SECTION_TEMPLATES.map((t) => {
+              const Icon = t.icon;
+              return (
+                <button key={t.type} type="button" data-testid={`add-section-${scope}-${mi}-${t.type}`} onClick={() => addSection(t.type)}
+                  className="inline-flex items-center gap-2 text-blue-900 font-semibold border-2 border-dashed border-blue-400 rounded-lg px-3 py-2 min-h-[44px] hover:bg-blue-50 transition-colors">
+                  <Icon className="w-4 h-4" /> {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamsScheduler({ mi }) {
   const { content, editMode, update } = useContent();
   const u = content.meetings.upcoming[mi];
@@ -256,6 +328,8 @@ export default function Meetings() {
                   <EArea path={`meetings.upcoming.${i}.agenda`} rows={2} />
                 </div>
 
+                <MeetingSections scope="upcoming" mi={i} />
+
                 <MeetingAttachments mi={i} scope="upcoming" />
 
                 <div className="mt-4 flex flex-col sm:flex-row gap-3 flex-wrap">
@@ -277,7 +351,7 @@ export default function Meetings() {
           <AddItemButton
             testId="add-upcoming-btn"
             label="Add Upcoming Meeting"
-            onClick={() => addItem("meetings.upcoming", { id: newId(), name: "New Meeting", meetingDate: "", startTime: "", endTime: "", timezone: "America/Chicago", teamsLink: "", attendees: "", purpose: "", agenda: "", attachments: [], rsvpDeadline: "" })}
+            onClick={() => addItem("meetings.upcoming", { id: newId(), name: "New Meeting", meetingDate: "", startTime: "", endTime: "", timezone: "America/Chicago", teamsLink: "", attendees: "", purpose: "", agenda: "", attachments: [], sections: [], rsvpDeadline: "" })}
           />
         </div>
       </SectionCard>
@@ -297,6 +371,7 @@ export default function Meetings() {
                 <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Decisions Made</div><EArea path={`meetings.past.${i}.decisions`} rows={2} /></div>
                 <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Action Items</div><EArea path={`meetings.past.${i}.actionItems`} rows={2} /></div>
               </div>
+              <MeetingSections scope="past" mi={i} />
               <PastMeetingDocs i={i} />
             </div>
           ))}
@@ -305,7 +380,7 @@ export default function Meetings() {
           <AddItemButton
             testId="add-past-btn"
             label="Add Past Meeting"
-            onClick={() => addItem("meetings.past", { id: newId(), date: "To be added", name: "Previous Meeting", minutes: "", decisions: "", actionItems: "", documents: "", attachments: [] })}
+            onClick={() => addItem("meetings.past", { id: newId(), date: "To be added", name: "Previous Meeting", minutes: "", decisions: "", actionItems: "", documents: "", attachments: [], sections: [] })}
           />
         </div>
       </SectionCard>
