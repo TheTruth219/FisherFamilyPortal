@@ -4,6 +4,7 @@ import { Trash2, Plus, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useContent } from "@/context/ContentContext";
 import { api, formatApiErrorDetail } from "@/lib/api";
+import { RichTextEditor, RichTextView } from "./RichText";
 
 export function FileUploadField({ path }) {
   const { content, update } = useContent();
@@ -83,19 +84,11 @@ export function EDate({ path, testId }) {
   );
 }
 
-export function EArea({ path, className = "text-lg leading-relaxed text-slate-800", placeholder = "—", rows = 3 }) {
+export function EArea({ path, className = "text-lg leading-relaxed text-slate-800", placeholder = "—" }) {
   const { content, editMode, update } = useContent();
   const value = get(content, path) ?? "";
-  if (!editMode) return <p data-testid={`content-${path}`} className={className}>{value || placeholder}</p>;
-  return (
-    <textarea
-      rows={rows}
-      data-testid={`edit-${path}`}
-      className="editable-area"
-      value={value}
-      onChange={(e) => update(path, e.target.value)}
-    />
-  );
+  if (!editMode) return <RichTextView html={value} className={className} placeholder={placeholder} testId={`content-${path}`} />;
+  return <RichTextEditor value={value} onChange={(html) => update(path, html)} testId={`edit-${path}`} />;
 }
 
 export function Field({ label, path }) {  return (
