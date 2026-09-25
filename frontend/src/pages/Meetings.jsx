@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarClock, Video, FileText, HelpCircle, ListChecks, Send, Upload, Loader2, Trash2, Paperclip, Clock, Plus, AlignLeft } from "lucide-react";
+import { CalendarClock, Video, FileText, HelpCircle, ListChecks, Send, Upload, Loader2, Trash2, Paperclip, Clock, Plus, AlignLeft, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
@@ -177,6 +177,25 @@ function MeetingSections({ scope, mi }) {
 
   const addSection = (type) => update(basePath, [...sections, { id: newId(), type, value: "" }]);
   const removeSection = (id) => update(basePath, sections.filter((s) => s.id !== id));
+  const [dragId, setDragId] = useState(null);
+  const moveSection = (id, dir) => {
+    const i = sections.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sections.length) return;
+    const next = [...sections];
+    [next[i], next[j]] = [next[j], next[i]];
+    update(basePath, next);
+  };
+  const reorder = (fromId, toId) => {
+    if (!fromId || fromId === toId) return;
+    const from = sections.findIndex((x) => x.id === fromId);
+    const to = sections.findIndex((x) => x.id === toId);
+    if (from < 0 || to < 0) return;
+    const next = [...sections];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    update(basePath, next);
+  };
 
   const visible = editMode ? sections : sections.filter((s) => isReal(s.value));
   if (visible.length === 0 && !editMode) return null;
@@ -189,13 +208,38 @@ function MeetingSections({ scope, mi }) {
         const valuePath = `${basePath}.${idx}.value`;
         const Icon = tmpl.icon;
         return (
-          <div key={s.id} data-testid={`meeting-section-${scope}-${mi}-${s.id}`}>
+          <div key={s.id} data-testid={`meeting-section-${scope}-${mi}-${s.id}`}
+            onDragOver={(e) => { if (editMode && dragId) e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); reorder(dragId, s.id); setDragId(null); }}
+            className={editMode ? `rounded-lg border p-2 transition-colors ${dragId === s.id ? "opacity-60 border-blue-400 bg-blue-50" : "border-slate-200"}` : ""}>
             <div className="flex items-center justify-between gap-2 mb-1">
-              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1"><Icon className="w-3.5 h-3.5" /> {tmpl.label}</div>
+              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1 min-w-0">
+                {editMode && (
+                  <button type="button" aria-label={`Drag to reorder ${tmpl.label}`} data-testid={`drag-section-${scope}-${mi}-${s.id}`}
+                    draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => setDragId(null)}
+                    className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 flex-shrink-0">
+                    <GripVertical className="w-4 h-4" />
+                  </button>
+                )}
+                <Icon className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{tmpl.label}</span>
+              </div>
               {editMode && (
-                <button type="button" aria-label={`Remove ${tmpl.label} section`} data-testid={`remove-section-${scope}-${mi}-${s.id}`} onClick={() => removeSection(s.id)} className="text-red-700 hover:bg-red-50 rounded p-1 flex-shrink-0">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button type="button" aria-label={`Move ${tmpl.label} up`} data-testid={`move-up-section-${scope}-${mi}-${s.id}`}
+                    onClick={() => moveSection(s.id, -1)} disabled={idx === 0}
+                    className="text-slate-500 hover:bg-slate-100 rounded p-1 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button type="button" aria-label={`Move ${tmpl.label} down`} data-testid={`move-down-section-${scope}-${mi}-${s.id}`}
+                    onClick={() => moveSection(s.id, 1)} disabled={idx === sections.length - 1}
+                    className="text-slate-500 hover:bg-slate-100 rounded p-1 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  <button type="button" aria-label={`Remove ${tmpl.label} section`} data-testid={`remove-section-${scope}-${mi}-${s.id}`} onClick={() => removeSection(s.id)}
+                    className="text-red-700 hover:bg-red-50 rounded p-1">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
             {tmpl.kind === "link" ? (
