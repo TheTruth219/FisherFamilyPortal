@@ -69,6 +69,19 @@ See /app/memory/test_credentials.md (admin thetruth219@gmail.com / FisherAdmin#2
 - Reminder fan-out now converts a meeting's structured schedule (meetingDate + startTime + endTime + source timezone, captured by the Teams scheduler) into EACH member's own timezone. Email shows "Your local time: Wednesday, July 15 · 7:00 PM–8:00 PM EDT" and, when the host zone differs, a "Meeting time (host)" line. Falls back to the old free-form `time` text for meetings without structured times. Helper: core._meeting_time_display; used in send_meeting_reminder.
 - Verified: conversion unit-checked across Chicago/NY/LA/Honolulu (6PM CDT → 7PM EDT / 4PM PDT / 1PM HST), unstructured fallback returns None, reminder fan-out test green, ruff F clean.
 
+## Bug fix: past-meeting attachments/minutes indicator (2026-06)
+- Report: attaching a document to a Past Meeting showed no attachment/indicator. Cause: past meetings used LinkButton with '#' href fallback, so buttons always rendered regardless of content, and past-meeting docs never synced to the Documents tab (unlike upcoming).
+- Fix (Meetings.jsx): generalized MeetingAttachments to scope 'upcoming'|'past' (syncs uploads to Documents tab, category 'Meetings'); new PastMeetingDocs shows a paperclip + count indicator with clickable links in view mode (past-docs-count-<i> / past-doc-<i>-<id>) or a muted 'No minutes or documents posted yet' (past-docs-empty-<i>); edit mode offers a minutes link/upload + synced 'Attach document'. Add-Past-Meeting default now has empty minutes/documents + attachments:[]. Upcoming attachment testids are now scoped (upcoming-meeting-<i>-attachment-...).
+- Verified: iteration_17.json frontend 100% (7/7 incl Documents-tab sync, removal from both, minutes link, upcoming regression, member read-only). State cleaned.
+
+## Documents grid uniformity (2026-06)
+- Report: document tiles looked staggered (cards sized to content → uneven heights, misaligned buttons). Fix (Documents.jsx): responsive equal-height grid ('grid gap-5 md:grid-cols-2 auto-rows-fr'), each card 'h-full flex flex-col' with the View/Download row pinned via 'mt-auto', title/description clamped (line-clamp-2, description min-h-[3rem]), metadata 2-col. Also: documents with no attached file now show a muted "No file attached yet" instead of a dead View/Download button (mirrors locked-state).
+- Verified: iteration_18.json frontend 100% — measured card heights identical (239px, 0px variance) within rows, buttons bottom-aligned, 2-col desktop / 1-col mobile, no overflow, long titles clamped.
+
+## Rename attachments (2026-06)
+- Admins can now give an uploaded meeting attachment a friendly display name instead of the raw filename. Meetings.jsx MeetingAttachments: edit-mode rename input (<scope>-meeting-<mi>-attachment-name-<id>) + Open link + remove; renameAttachment syncs the title to both the meeting's attachments[] and the matching content.documents[] entry (by shared id). View mode shows the friendly name. (Documents already had editable titles via EText.)
+- Verified: iteration_19.json frontend 100% (upcoming + past rename, Documents-tab sync, Open link intact, remove sync, regression clean; cleanup done).
+
 ## Next Tasks
 - Await user review. Optionally: real Stripe Connect key for live payouts; full 1099 generation.
 

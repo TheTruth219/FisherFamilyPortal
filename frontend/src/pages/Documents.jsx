@@ -61,17 +61,17 @@ export default function Documents() {
       </div>
 
       <SectionCard testId="documents-list">
-        <div className="space-y-4">
+        <div className="grid gap-5 md:grid-cols-2 auto-rows-fr">
           {docs.map((d, i) => {
             if (!matches(d)) return null;
             return (
-              <div key={d.id} className="border-2 border-slate-200 rounded-xl p-5" data-testid={`document-${i}`}>
+              <div key={d.id} className="border-2 border-slate-200 rounded-xl p-5 h-full flex flex-col" data-testid={`document-${i}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
                     <FileText className="w-6 h-6 text-blue-900 flex-shrink-0 mt-1" />
                     <div className="min-w-0">
-                      <EText path={`documents.${i}.title`} className="text-xl font-bold text-slate-900" />
-                      <div className="mt-1"><EArea path={`documents.${i}.description`} className="text-base text-slate-700" rows={2} /></div>
+                      <EText path={`documents.${i}.title`} className="text-xl font-bold text-slate-900 line-clamp-2" />
+                      <div className="mt-1"><EArea path={`documents.${i}.description`} className="text-base text-slate-700 line-clamp-2 min-h-[3rem]" rows={2} /></div>
                     </div>
                   </div>
                   <span className={`inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wide border rounded px-2 py-1 flex-shrink-0 ${accessBadge(d.access)}`}>
@@ -80,7 +80,7 @@ export default function Documents() {
                   </span>
                 </div>
 
-                <div className="mt-3 grid sm:grid-cols-3 gap-4">
+                <div className="mt-3 grid grid-cols-2 gap-4">
                   <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Document Date</div><EText path={`documents.${i}.date`} className="text-base text-slate-900" /></div>
                   <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Last Updated</div><EText path={`documents.${i}.updated`} className="text-base text-slate-900" /></div>
                   {editMode && (
@@ -101,12 +101,18 @@ export default function Documents() {
                   )}
                 </div>
 
-                <div className="mt-4 flex items-center gap-3 flex-wrap">
-                  {editMode || canOpen(auth?.role, d.access) ? (
+                <div className="mt-auto pt-4 flex items-center gap-3 flex-wrap">
+                  {editMode ? (
                     <LinkButton label="View / Download" path={`documents.${i}.link`} variant="secondary" testId={`doc-view-${i}`} />
-                  ) : (
+                  ) : !canOpen(auth?.role, d.access) ? (
                     <span data-testid={`doc-locked-${i}`} className="inline-flex items-center gap-2 text-slate-500 font-semibold border-2 border-slate-200 rounded-lg px-4 py-3 min-h-[56px]">
                       <Lock className="w-4 h-4" /> Requires {d.access} access
+                    </span>
+                  ) : d.link && !/^#?$/.test(String(d.link).trim()) ? (
+                    <LinkButton label="View / Download" path={`documents.${i}.link`} variant="secondary" testId={`doc-view-${i}`} />
+                  ) : (
+                    <span data-testid={`doc-nofile-${i}`} className="inline-flex items-center gap-2 text-slate-400 font-semibold border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 min-h-[56px]">
+                      <FileText className="w-4 h-4" /> No file attached yet
                     </span>
                   )}
                   <DeleteItemButton testId={`delete-doc-${i}`} onClick={() => removeItem("documents", i)} />

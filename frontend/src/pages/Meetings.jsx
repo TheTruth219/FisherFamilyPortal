@@ -28,12 +28,14 @@ const timeLabel = (t) => {
   return `${hh}:${String(m).padStart(2, "0")} ${ap}`;
 };
 
-function MeetingAttachments({ mi }) {
+function MeetingAttachments({ mi, scope = "upcoming" }) {
   const { content, editMode, update } = useContent();
-  const meeting = content.meetings.upcoming[mi];
+  const meeting = content.meetings[scope][mi];
   const attachments = meeting.attachments || [];
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
+  const basePath = `meetings.${scope}.${mi}.attachments`;
+  const tid = `${scope}-meeting-${mi}`;
 
   const onFile = async (e) => {
     const file = e.target.files?.[0];
@@ -45,7 +47,7 @@ function MeetingAttachments({ mi }) {
       const { data } = await api.post("/files/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
       const id = newId();
       const today = new Date().toISOString().slice(0, 10);
-      update(`meetings.upcoming.${mi}.attachments`, [...attachments, { id, title: data.filename, link: data.url }]);
+      update(basePath, [...attachments, { id, title: data.filename, link: data.url }]);
       update("documents", [
         ...(content.documents || []),
         { id, title: data.filename, description: `Attached to meeting: ${meeting.name || "Meeting"}`, date: today, updated: today, access: "All Members", link: data.url, category: "Meetings" },
@@ -60,8 +62,13 @@ function MeetingAttachments({ mi }) {
   };
 
   const removeAttachment = (id) => {
-    update(`meetings.upcoming.${mi}.attachments`, attachments.filter((a) => a.id !== id));
+    update(basePath, attachments.filter((a) => a.id !== id));
     update("documents", (content.documents || []).filter((d) => d.id !== id));
+  };
+
+  const renameAttachment = (id, title) => {
+    update(basePath, attachments.map((a) => (a.id === id ? { ...a, title } : a)));
+    update("documents", (content.documents || []).map((d) => (d.id === id ? { ...d, title } : d)));
   };
 
   if (attachments.length === 0 && !editMode) return null;
@@ -71,12 +78,20 @@ function MeetingAttachments({ mi }) {
       <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2"><Paperclip className="w-4 h-4" /> Meeting Documents</div>
       <div className="space-y-2">
         {attachments.map((a) => (
-          <div key={a.id} className="flex items-center justify-between gap-3 border border-slate-200 rounded-lg px-3 py-2" data-testid={`meeting-${mi}-attachment-${a.id}`}>
-            <a href={a.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-blue-900 font-semibold hover:underline min-w-0">
-              <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate">{a.title}</span>
-            </a>
+          <div key={a.id} className="flex items-center justify-between gap-3 border border-slate-200 rounded-lg px-3 py-2" data-testid={`${tid}-attachment-${a.id}`}>
+            {editMode ? (
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <FileText className="w-4 h-4 flex-shrink-0 text-blue-900" />
+                <input value={a.title} onChange={(e) => renameAttachment(a.id, e.target.value)} data-testid={`${tid}-attachment-name-${a.id}`} aria-label="Attachment display name" placeholder="Display name" className="editable-input flex-1 min-w-0" />
+                <a href={a.link} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-900 hover:underline flex-shrink-0">Open</a>
+              </div>
+            ) : (
+              <a href={a.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-blue-900 font-semibold hover:underline min-w-0">
+                <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate">{a.title}</span>
+              </a>
+            )}
             {editMode && (
-              <button type="button" aria-label="Remove attachment" data-testid={`remove-meeting-${mi}-attachment-${a.id}`} onClick={() => removeAttachment(a.id)} className="text-red-700 hover:bg-red-50 rounded p-1">
+              <button type="button" aria-label="Remove attachment" data-testid={`remove-${tid}-attachment-${a.id}`} onClick={() => removeAttachment(a.id)} className="text-red-700 hover:bg-red-50 rounded p-1 flex-shrink-0">
                 <Trash2 className="w-4 h-4" />
               </button>
             )}
@@ -86,13 +101,62 @@ function MeetingAttachments({ mi }) {
       </div>
       {editMode && (
         <>
-          <input ref={inputRef} type="file" className="hidden" data-testid={`meeting-${mi}-attachment-input`} onChange={onFile} />
-          <button type="button" data-testid={`meeting-${mi}-attachment-upload`} onClick={() => inputRef.current?.click()} disabled={uploading}
+          <input ref={inputRef} type="file" className="hidden" data-testid={`${tid}-attachment-input`} onChange={onFile} />
+          <button type="button" data-testid={`${tid}-attachment-upload`} onClick={() => inputRef.current?.click()} disabled={uploading}
             className="mt-2 inline-flex items-center gap-2 text-blue-900 font-semibold border-2 border-dashed border-blue-400 rounded-lg px-4 py-2 min-h-[44px] hover:bg-blue-50 transition-colors disabled:opacity-60">
             {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
             {uploading ? "Uploading…" : "Attach document"}
           </button>
         </>
+      )}
+    </div>
+  );
+}
+
+function PastMeetingDocs({ i }) {
+  const { content, editMode } = useContent();
+  const pm = content.meetings.past[i] || {};
+  const isReal = (v) => v && !/^#?$/.test(String(v).trim());
+  const items = [];
+  if (isReal(pm.minutes)) items.push({ id: "minutes", title: "Meeting minutes", link: pm.minutes });
+  if (isReal(pm.documents)) items.push({ id: "documents", title: "Supporting documents", link: pm.documents });
+  (pm.attachments || []).forEach((a) => items.push(a));
+
+  return (
+    <div className="mt-4">
+      {items.length > 0 ? (
+        <>
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-2" data-testid={`past-docs-count-${i}`}>
+            <Paperclip className="w-4 h-4 text-blue-900" /> {items.length} attachment{items.length > 1 ? "s" : ""}
+          </div>
+          <div className="flex flex-col gap-2">
+            {items.map((it) => (
+              <a key={it.id} href={it.link} target="_blank" rel="noreferrer" data-testid={`past-doc-${i}-${it.id}`}
+                className="inline-flex items-center gap-2 text-blue-900 font-semibold hover:underline">
+                <FileText className="w-4 h-4 flex-shrink-0" /> {it.title}
+              </a>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-slate-400 flex items-center gap-2" data-testid={`past-docs-empty-${i}`}>
+          <Paperclip className="w-4 h-4" /> No minutes or documents posted yet
+        </p>
+      )}
+      {editMode && (
+        <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-700 mb-1">Meeting minutes (paste a link or upload a file)</div>
+            <LinkButton path={`meetings.past.${i}.minutes`} label="View Minutes" icon={ListChecks} variant="secondary" testId={`past-minutes-${i}`} />
+          </div>
+          {isReal(pm.documents) && (
+            <div>
+              <div className="text-sm font-semibold text-slate-700 mb-1">Supporting document (legacy link)</div>
+              <LinkButton path={`meetings.past.${i}.documents`} label="Supporting Documents" icon={FileText} variant="secondary" testId={`past-docs-legacy-${i}`} />
+            </div>
+          )}
+          <MeetingAttachments scope="past" mi={i} />
+        </div>
       )}
     </div>
   );
@@ -192,7 +256,7 @@ export default function Meetings() {
                   <EArea path={`meetings.upcoming.${i}.agenda`} rows={2} />
                 </div>
 
-                <MeetingAttachments mi={i} />
+                <MeetingAttachments mi={i} scope="upcoming" />
 
                 <div className="mt-4 flex flex-col sm:flex-row gap-3 flex-wrap">
                   {joinLink && (
@@ -233,10 +297,7 @@ export default function Meetings() {
                 <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Decisions Made</div><EArea path={`meetings.past.${i}.decisions`} rows={2} /></div>
                 <div><div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Action Items</div><EArea path={`meetings.past.${i}.actionItems`} rows={2} /></div>
               </div>
-              <div className="mt-4 flex flex-col sm:flex-row gap-3 flex-wrap">
-                <LinkButton path={`meetings.past.${i}.minutes`} label="View Minutes" icon={ListChecks} variant="secondary" testId={`past-minutes-${i}`} />
-                <LinkButton path={`meetings.past.${i}.documents`} label="Supporting Documents" icon={FileText} variant="secondary" testId={`past-docs-${i}`} />
-              </div>
+              <PastMeetingDocs i={i} />
             </div>
           ))}
         </div>
@@ -244,7 +305,7 @@ export default function Meetings() {
           <AddItemButton
             testId="add-past-btn"
             label="Add Past Meeting"
-            onClick={() => addItem("meetings.past", { id: newId(), date: "To be added", name: "Previous Meeting", minutes: "#", decisions: "", actionItems: "", documents: "#" })}
+            onClick={() => addItem("meetings.past", { id: newId(), date: "To be added", name: "Previous Meeting", minutes: "", decisions: "", actionItems: "", documents: "", attachments: [] })}
           />
         </div>
       </SectionCard>

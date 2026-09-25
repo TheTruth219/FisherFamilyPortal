@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only verification of Past Meeting attachments/minutes indicator bug fix on /meetings. All 7 requested scenarios passed: view-mode empty indicator, admin edit-mode upload (past-meeting-<i>-attachment-upload/-input), attachment listed with count indicator (past-docs-count-<i>) and clickable link (past-doc-<i>-<id>) after Save, sync with /documents under category 'Meetings', minutes URL via edit-meetings.past.<i>.minutes rendered as past-doc-<i>-minutes with count, removal cleared item from both Past Meeting card and /documents, upcoming meeting regression (upcoming-meeting-<i>-attachment-upload + send-teams-invite-<i>) still works, and member (victoria) sees read-only view with no edit/upload controls. State was cleaned up after each phase.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PastMeetingDocs treats any minutes value that isn't empty or '#' as real, which is fine, but the LinkButton for minutes always renders the top anchor with href='#' fallback ONLY in edit mode now (since view-mode is handled by PastMeetingDocs) — behavior is correct. No action needed.",
+    "MeetingAttachments.removeAttachment removes the document by id from content.documents; since attachment ids and document ids share the same value at creation time, this works. If the same file were referenced elsewhere with the same id it would be unintentionally removed — low-risk given per-upload newId()."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend": "100%"},
+  "test_credentials": "Admin thetruth219@gmail.com / FisherAdmin#2026; Member victoria@fisherfamily.com / Fisher#2026",
+  "seed_data_creation": "Uploaded two temp files (test-past-doc.txt, test-upc-doc.txt) during testing; both were removed and Saved so state is clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fix for past meeting attachments/minutes indicator verified end-to-end. State cleaned; portal returned to baseline. Iteration 16 covered upcoming meetings; iteration 17 covers past meetings."
+}
