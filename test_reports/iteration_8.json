@@ -1,0 +1,24 @@
+{
+  "summary": "Frontend-only regression of the blue/white redesign against REACT_APP_BACKEND_URL, focused on the follow-ups iteration_7 skipped. Palette + overflow: at 1920x800 and 390x844 every route (/login, /dashboard, /reunion, /family-business, /payments, /meetings, /documents, /contact, /account, /disbursements, /my-statements, /members, /admin) rendered in the modern light blue/white palette with 0 elements right>innerWidth+1 (full * scan including SVG descendants). Screenshots saved to /app/.screenshots/i8_*.png. Route guards: as Victoria (member) direct visits to /disbursements, /admin, /members redirect to /dashboard with 0 protected /api/* hits — no child mount, no 403 background fetch. Admin routes still work. Option-nesting warning gone: 33 <option> nodes in the disbursement create dialog have 0 <span> children (visual-editor no longer injects). Data-save exercises: created TEST_REDESIGN_ disbursement with disbursement-send-email-switch un-checked (checked True→False) — POST 200, ledger 4→5, DB row shows email_sent_at=None (no email sent). Edited reason A→B — PATCH 200, GET confirms 'TEST_REDESIGN_ reason B edited', audit-log now has create+edit entries with reason old/new delta. Receipt PDF via /api/disbursements/{id}/receipt returns 200 application/pdf 2524B, magic '%PDF'. Cleanup done via Mongo (delete_one disbursements + delete_many audit_log). Timezone save+restore: UTC→America/New_York persisted on /api/auth/me, restored to UTC. Member edit modal: member-edit-* opens dialog, Save with unchanged values succeeds ('updated' toast). Content edit via UI edit-mode: /api/content is nested (alerts, reunion, ...) not flat strings; UI edit-mode banner already verified in iteration_7 — did not modify content wholesale per instructions. Documents: search (documents-search) filters 6→documents-empty on 'zzzznomatch' → 6 after clear; category filter re-counts. Mobile Sheet: mobile-menu-button opens role=dialog, Tab focuses mobile-nav-dashboard, Escape closes. Disbursement dialog opens/Escape-closes cleanly. Victoria my-statements own scope 200, cross-user statement 403; PDF link present. Verify page without token shows readable 'This sign-in link is missing its token' copy. No console errors/warnings observed across all flows.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_8.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProtectedRoute now correctly gates admin routes via allowedRoles and redirects to /dashboard before mounting children — verified no /api leakage.",
+    "Backend has no DELETE /api/disbursements/{id} endpoint (returns 405). Not blocking for this iteration but if UI ever needs delete, add a soft-delete route.",
+    "FamilyArtwork SVG previously overflowed at 390px; now bounded (0 offenders on every mobile route)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only)", "frontend": "100% of requested flows"},
+  "test_credentials": "Admin thetruth219@gmail.com / FisherAdmin#2026, Member victoria@fisherfamily.com / Fisher#2026 (per /app/memory/test_credentials.md).",
+  "seed_data_creation": "Created disbursement fdd59a31-10c1-490c-9817-b42a6fc67663 (member=Portal Administrator, amount=$12.34, category=Bonus, reason='TEST_REDESIGN_ reason A' then edited to 'TEST_REDESIGN_ reason B edited', send_email=false). Cleaned up via Mongo delete_one on `disbursements` + delete_many on `audit_log` (2 audit rows removed). No emails sent (email_sent_at=None). Timezone toggled UTC→America/New_York and restored to UTC on admin account. All content, credentials, and other seeded rows untouched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration_7 medium issues are resolved and the new save/edit/audit/PDF flows verified end-to-end. Screenshots at /app/.screenshots/i8_login_desktop.png, i8_dashboard_desktop.png, i8_reunion_desktop.png, i8_disbursements_desktop.png, i8_documents_desktop.png, i8_account_desktop.png, i8_dashboard_mobile.png, i8_reunion_mobile.png, i8_disbursements_mobile.png, i8_documents_mobile.png, i8_members_mobile.png. Correct receipt PDF URL is /api/disbursements/{id}/receipt (not receipt.pdf). Portal /api/content is nested by section — use UI edit-mode (edit-mode-toggle) rather than API PUT for text field edits.",
+  "rca of the issue": "N/A — all previously flagged issues (mobile SVG overflow, member 403 flash, option span-in-option warning) are fixed. New save flows all succeed and the send_email=false path correctly suppresses outbound email (verified email_sent_at=None in Mongo)."
+}

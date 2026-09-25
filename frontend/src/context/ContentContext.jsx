@@ -19,8 +19,9 @@ export function ContentProvider({ children }) {
       const { data } = await api.get("/content");
       setContent(data);
       setDirty(false);
-    } catch {
-      /* handled by protected route */
+    } catch (err) {
+      console.error("Content load failed:", err);
+      /* auth failures are handled by the protected route */
     }
   }, [isAuthed]);
 

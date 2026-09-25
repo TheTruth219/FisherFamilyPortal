@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarHeart, Briefcase, CreditCard, Users, FileText, UserCog,
-  Inbox, ShieldAlert, Mail, Phone, Bell,
+  Inbox, ShieldAlert, Mail, Phone, Bell, Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
 import Layout, { SectionCard } from "@/components/Layout";
@@ -15,6 +15,7 @@ const MANAGE = [
   { key: "payments", label: "Payments", to: "/payments", icon: CreditCard },
   { key: "meetings", label: "Meetings", to: "/meetings", icon: Users },
   { key: "documents", label: "Documents", to: "/documents", icon: FileText },
+  { key: "disbursements", label: "Disbursements", to: "/disbursements", icon: Banknote },
   { key: "members", label: "Members", to: "/members", icon: UserCog },
 ];
 
@@ -147,7 +148,7 @@ export default function AdminHome() {
                       </div>
                       <div className="text-base text-slate-700 mt-1">{r.name}</div>
                       <div className="text-sm text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                        <a href={`mailto:${r.email}`} className="inline-flex items-center gap-1 text-blue-900 hover:underline">
+                        <a data-testid={`help-email-${r.id}`} href={`mailto:${r.email}`} className="inline-flex items-center gap-1 text-blue-900 hover:underline">
                           <Mail className="w-4 h-4" /> {r.email}
                         </a>
                         {r.phone ? <span className="inline-flex items-center gap-1"><Phone className="w-4 h-4" /> {r.phone}</span> : null}

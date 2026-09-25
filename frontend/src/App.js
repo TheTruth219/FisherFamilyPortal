@@ -16,10 +16,13 @@ import Contact from "@/pages/Contact";
 import MembersAdmin from "@/pages/MembersAdmin";
 import AdminHome from "@/pages/AdminHome";
 import Account from "@/pages/Account";
+import Disbursements from "@/pages/Disbursements";
+import MyStatements from "@/pages/MyStatements";
+import Directory from "@/pages/Directory";
 
-function Protected({ children }) {
+function Protected({ children, allowedRoles }) {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={allowedRoles}>
       <ContentProvider>{children}</ContentProvider>
     </ProtectedRoute>
   );
@@ -30,7 +33,7 @@ function App() {
     <div className="App">
       <AuthProvider>
         <BrowserRouter>
-          <Toaster position="top-center" richColors />
+          <Toaster position="top-center" theme="light" richColors closeButton />
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/auth/verify" element={<Verify />} />
@@ -41,9 +44,12 @@ function App() {
             <Route path="/meetings" element={<Protected><Meetings /></Protected>} />
             <Route path="/documents" element={<Protected><Documents /></Protected>} />
             <Route path="/contact" element={<Protected><Contact /></Protected>} />
-            <Route path="/members" element={<Protected><MembersAdmin /></Protected>} />
-            <Route path="/admin" element={<Protected><AdminHome /></Protected>} />
+            <Route path="/directory" element={<Protected><Directory /></Protected>} />
+            <Route path="/members" element={<Protected allowedRoles={["admin"]}><MembersAdmin /></Protected>} />
+            <Route path="/admin" element={<Protected allowedRoles={["admin"]}><AdminHome /></Protected>} />
             <Route path="/account" element={<Protected><Account /></Protected>} />
+            <Route path="/disbursements" element={<Protected allowedRoles={["business_member", "committee_member", "admin"]}><Disbursements /></Protected>} />
+            <Route path="/my-statements" element={<Protected><MyStatements /></Protected>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>

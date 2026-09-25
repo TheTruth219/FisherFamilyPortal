@@ -86,11 +86,11 @@ export default function FamilyBusiness() {
             <tbody>
               {(fb.structure || []).map((s, i) => (
                 <tr key={s.id} className="border-b border-slate-100 align-top">
-                  <td className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.entity`} className="text-base text-slate-900" /></td>
-                  <td className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.group`} className="text-base text-slate-900" /></td>
-                  <td className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.role`} className="text-base text-slate-900" /></td>
-                  <td className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.authority`} className="text-base text-slate-900" /></td>
-                  <td className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.contact`} className="text-base text-slate-900" /></td>
+                  <td data-label="Matter" className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.entity`} className="text-base text-slate-900" /></td>
+                  <td data-label="Responsible group" className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.group`} className="text-base text-slate-900" /></td>
+                  <td data-label="Primary role" className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.role`} className="text-base text-slate-900" /></td>
+                  <td data-label="Decision authority" className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.authority`} className="text-base text-slate-900" /></td>
+                  <td data-label="Contact" className="py-3 pr-4"><EText path={`familyBusiness.structure.${i}.contact`} className="text-base text-slate-900" /></td>
                   {editMode && (
                     <td className="py-3">
                       <DeleteItemButton testId={`delete-structure-${i}`} onClick={() => removeItem("familyBusiness.structure", i)} label="" />

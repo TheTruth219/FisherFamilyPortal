@@ -1,0 +1,27 @@
+{
+  "summary": "Post-refactor backend regression. server.py was split into core.py + per-domain routes_*.py modules. Ran full backend pytest suite (existing 78 tests) plus a new 31-test refactor smoke suite covering password login, /auth/me, logout, unauth 401 on /content, admin/member RBAC on /members, member PATCH persistence, /content GET+PUT, /files/{id} RBAC, /auth/profile PATCH, /directory alphabetical, profile-photo non-image rejection, disbursement create/list/patch/acknowledge/receipt-PDF/statement-PDF/member-scoping/cleanup, /fund /categories /audit, cron secret auth (401 no-secret, 401 bad-secret, and one manual 200 with correct secret), and stripe onboard/status/tax graceful (<500). Result: 109 passed, 0 failed (real-email-to-admin tests intentionally deselected due to provider throttling, as flagged by main agent). Route surface and behavior fully match pre-refactor.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_refactor_smoke.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_disbursements.py",
+    "/app/backend/tests/test_profile_directory.py",
+    "/app/backend/tests/test_reminder_fanout.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py still uses deprecated @app.on_event('startup'/'shutdown') — FastAPI recommends lifespan handlers. Non-blocking but worth migrating.",
+    "Full-module `from core import *` in every routes_*.py hides the actual dependency surface and risks name collisions on future edits; consider explicit imports.",
+    "core.py is ~1000 lines and still holds unrelated concerns (models, PDF, seed data, email helpers, storage, auth). Recommend a further split: models.py, pdf.py, email.py, seed.py, security.py."
+  ],
+  "updated_files": ["/app/backend/tests/test_refactor_smoke.py"],
+  "success_rate": {"backend": "100% (109/109; 3 real-email tests deselected per instruction)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "Admin thetruth219@gmail.com / FisherAdmin#2026; Member victoria@fisherfamily.com / Fisher#2026",
+  "seed_data_creation": "Only ephemeral: one TEST disbursement created and deleted per module fixture; member first_name patched then restored; profile phone updated on victoria (harmless).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "New file /app/backend/tests/test_refactor_smoke.py is the canonical post-refactor regression suite (31 tests) covering all route modules created in this split. Run with: `cd /app/backend && python -m pytest tests/ --deselect tests/test_disbursements.py::TestResendEmail` (the deselected class hits real Resend email delivery and fails intermittently due to provider throttling — NOT a code issue). Cron manual 200-with-correct-secret was verified via curl using WEBHOOK_CRON_SECRET from /app/backend/.env; only performed once to avoid real emails.",
+  "rca of the issue": "N/A — refactor confirmed regression-free."
+}

@@ -56,9 +56,10 @@ export function FileUploadField({ path }) {
 export function EText({ path, className = "text-lg text-slate-900", placeholder = "—" }) {
   const { content, editMode, update } = useContent();
   const value = get(content, path) ?? "";
-  if (!editMode) return <span className={className}>{value || placeholder}</span>;
+  if (!editMode) return <span data-testid={`content-${path}`} className={className}>{value || placeholder}</span>;
   return (
     <input
+      aria-label={path.split(".").filter((part) => !/^\d+$/.test(part)).join(" ")}
       data-testid={`edit-${path}`}
       className="editable-input"
       value={value}
@@ -85,7 +86,7 @@ export function EDate({ path, testId }) {
 export function EArea({ path, className = "text-lg leading-relaxed text-slate-800", placeholder = "—", rows = 3 }) {
   const { content, editMode, update } = useContent();
   const value = get(content, path) ?? "";
-  if (!editMode) return <p className={className}>{value || placeholder}</p>;
+  if (!editMode) return <p data-testid={`content-${path}`} className={className}>{value || placeholder}</p>;
   return (
     <textarea
       rows={rows}
@@ -111,6 +112,7 @@ export function DeleteItemButton({ onClick, testId = "delete-item-btn", label = 
   return (
     <button
       type="button"
+      aria-label={label || "Remove item"}
       data-testid={testId}
       onClick={onClick}
       className="inline-flex items-center gap-2 text-red-700 font-semibold border-2 border-red-300 rounded-lg px-3 py-2 min-h-[44px] hover:bg-red-50 transition-colors"

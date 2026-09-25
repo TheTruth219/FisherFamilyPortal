@@ -475,8 +475,8 @@ class TestFileAccess:
             if expect == "deny":
                 assert r.status_code == 403, f"role={role} fid={fid} expected 403 got {r.status_code}"
             else:
-                # allow path: file record exists but storage_path is fake, so we expect 502 (storage download failed) NOT 403/401/404
-                assert r.status_code in (200, 502), f"role={role} fid={fid} expected allow but got {r.status_code}: {r.text[:200]}"
+                # allow path: file record exists but storage_path is fake, so we expect 400 (storage download failed) NOT 403/401/404
+                assert r.status_code in (200, 400), f"role={role} fid={fid} expected allow but got {r.status_code}: {r.text[:200]}"
 
     def test_file_download_requires_auth(self):
         fid = self._inject_file_with_access("All Members")

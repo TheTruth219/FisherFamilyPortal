@@ -1,115 +1,105 @@
 import React from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { ChevronLeft, LogOut, Pencil, Check, Save, Loader2, UserCircle } from "lucide-react";
+import { useNavigate, Link, NavLink, useLocation } from "react-router-dom";
+import { ChevronLeft, ChevronRight, LogOut, Pencil, Check, Save, Loader2, Home, CalendarHeart, Briefcase, CreditCard, CalendarDays, FolderOpen, FileSpreadsheet, Banknote, Users, Settings2, LifeBuoy, LockKeyhole, Menu, Contact } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
+import { FamilyMark } from "@/components/FamilyArtwork";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+
+const FAMILY_NAV = [
+  { to: "/dashboard", label: "Home", icon: Home },
+  { to: "/reunion", label: "Family Reunion", icon: CalendarHeart },
+  { to: "/meetings", label: "Meetings", icon: CalendarDays },
+  { to: "/documents", label: "Documents", icon: FolderOpen },
+  { to: "/directory", label: "Address Book", icon: Contact },
+];
+const BUSINESS_NAV = [
+  { to: "/family-business", label: "Family Business", icon: Briefcase },
+  { to: "/payments", label: "Payments", icon: CreditCard },
+  { to: "/my-statements", label: "My Statements", icon: FileSpreadsheet },
+];
+
+function Navigation({ mobile = false }) {
+  const { auth, isAdmin } = useAuth();
+  const staff = ["business_member", "committee_member", "admin"].includes(auth?.role);
+  const groups = [
+    { title: "YOUR FAMILY", items: FAMILY_NAV },
+    { title: "FAMILY BUSINESS", items: [...BUSINESS_NAV, ...(staff ? [{ to: "/disbursements", label: "Disbursements", icon: Banknote }] : [])] },
+    ...(isAdmin ? [{ title: "ADMINISTRATION", items: [{ to: "/admin", label: "Admin Console", icon: Settings2 }, { to: "/members", label: "Members", icon: Users }] }] : []),
+  ];
+  return <nav aria-label={mobile ? "Mobile navigation" : "Main navigation"} className="portal-navigation">
+    {groups.map((group) => <div className="nav-group" key={group.title}>
+      <div className="nav-group-label">{group.title}</div>
+      {group.items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} data-testid={`${mobile ? "mobile" : "sidebar"}-nav-${to.slice(1)}`} className={({ isActive }) => `sidebar-link ${isActive ? "is-active" : ""}`}>
+        <Icon size={19} strokeWidth={1.7} /><span>{label}</span><span className="nav-active-dot" />
+      </NavLink>)}
+    </div>)}
+    <NavLink to="/contact" data-testid={`${mobile ? "mobile" : "sidebar"}-nav-contact`} className="sidebar-link help-nav"><LifeBuoy size={19} strokeWidth={1.7} />Help & contact</NavLink>
+  </nav>;
+}
 
 export default function Layout({ title, subtitle, showBack = true, children, testId }) {
   const navigate = useNavigate();
-  const { isAdmin, logout } = useAuth();
+  const location = useLocation();
+  const { isAdmin, auth, logout } = useAuth();
   const { editMode, setEditMode, dirty, saving, save, reload } = useContent();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login", { replace: true });
-  };
-
+  const handleLogout = async () => { await logout(); navigate("/login", { replace: true }); };
   const toggleEdit = async () => {
-    if (editMode && dirty) {
-      await save();
-    }
-    if (editMode) {
-      await reload();
-    }
+    if (editMode && dirty) await save();
+    if (editMode) await reload();
     setEditMode(!editMode);
   };
+  const initials = `${auth?.first_name?.[0] || "F"}${auth?.last_name?.[0] || ""}`;
+  const crumb = [...FAMILY_NAV, ...BUSINESS_NAV].find((n) => n.to === location.pathname)?.label || title;
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-body" data-testid={testId}>
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="font-heading font-bold text-lg sm:text-xl truncate">Fisher Family Portal</div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button
-                data-testid="edit-mode-toggle"
-                onClick={toggleEdit}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 min-h-[44px] font-semibold bg-white text-slate-900 hover:bg-slate-100 transition-colors"
-              >
-                {saving ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : editMode ? (
-                  <Check className="w-5 h-5" />
-                ) : (
-                  <Pencil className="w-5 h-5" />
-                )}
-                <span className="hidden sm:inline">{editMode ? "Done" : "Edit"}</span>
-              </button>
-            )}
-            {isAdmin && editMode && dirty && (
-              <button
-                data-testid="save-changes-btn"
-                onClick={save}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 min-h-[44px] font-semibold bg-blue-600 text-white hover:bg-blue-500 transition-colors"
-              >
-                <Save className="w-5 h-5" />
-                <span className="hidden sm:inline">Save</span>
-              </button>
-            )}
-            <Link
-              to="/account"
-              data-testid="account-link"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 min-h-[44px] font-semibold border border-slate-600 text-white hover:bg-slate-800 transition-colors"
-            >
-              <UserCircle className="w-5 h-5" />
-              <span className="hidden sm:inline">Account</span>
-            </Link>
-            <button
-              data-testid="logout-btn"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 min-h-[44px] font-semibold border border-slate-600 text-white hover:bg-slate-800 transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden sm:inline">Log Out</span>
-            </button>
-          </div>
+  return <div className="portal-shell" data-testid={testId}>
+    <a href="#main-content" className="skip-link" data-testid="skip-to-content">Skip to content</a>
+    <aside className="portal-sidebar">
+      <Link to="/dashboard" className="portal-brand" data-testid="brand-home" aria-label="Fisher Family Portal home"><FamilyMark testId="brand-home-logo" /></Link>
+      <Navigation />
+      <div className="sidebar-bottom"><FamilyMark testId="sidebar-footer-logo" /><span>A little closer. Always.</span></div>
+    </aside>
+    <div className="portal-workspace">
+      <header className="portal-topbar">
+        <div className="topbar-leading">
+          <Sheet key={location.pathname}>
+            <SheetTrigger asChild><button className="icon-button mobile-menu-button" aria-label="Open navigation" data-testid="mobile-menu-button"><Menu size={21} /></button></SheetTrigger>
+            <SheetContent side="left" className="mobile-nav-sheet">
+              <SheetTitle className="portal-brand"><FamilyMark testId="mobile-nav-logo" /><span className="sr-only">Fisher Family Portal navigation</span></SheetTitle>
+              <SheetDescription className="sr-only">Navigate your private family portal</SheetDescription>
+              <Navigation mobile />
+            </SheetContent>
+          </Sheet>
+          <Link to="/dashboard" className="mobile-brand-link" aria-label="Fisher Family Portal home" data-testid="mobile-brand-home"><FamilyMark testId="mobile-header-logo" /></Link>
+          <div className="topbar-breadcrumb"><span>Family portal</span><ChevronRight size={13} /><strong>{crumb}</strong></div>
+        </div>
+        <div className="topbar-actions">
+          <span className="private-pill"><span /> Private family space</span>
+          {isAdmin && <button data-testid="edit-mode-toggle" aria-label={editMode ? "Finish editing" : "Edit content"} title="Edit page content" onClick={toggleEdit} className={`topbar-edit ${editMode ? "editing" : ""}`}>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : editMode ? <Check size={15} /> : <Pencil size={15} />}<span>{editMode ? "Done" : "Edit page"}</span>
+          </button>}
+          {isAdmin && editMode && dirty && <button data-testid="save-changes-btn" onClick={save} disabled={saving} className="portal-button primary compact"><Save size={15} />Save</button>}
+          <Link to="/account" data-testid="account-link" className="profile-button" aria-label="Your account" title="Your account">{initials}</Link>
+          <button data-testid="logout-btn" onClick={handleLogout} className="icon-button" aria-label="Log out" title="Log out"><LogOut size={18} /></button>
         </div>
       </header>
-
-      {isAdmin && editMode && (
-        <div className="bg-blue-100 border-b-2 border-blue-300 text-blue-900 text-center py-2 text-base font-semibold" data-testid="edit-mode-banner">
-          Edit mode is on — update any field, then press Save.
+      {isAdmin && editMode && <div className="edit-banner" data-testid="edit-mode-banner"><Pencil size={15} /> You’re editing this page. Save your changes when you’re ready.</div>}
+      <main className="portal-main" id="main-content">
+        <div className="page-heading">
+          <div className="page-eyebrow" data-testid="page-eyebrow">{showBack ? <Link to="/dashboard" data-testid="back-to-dashboard"><ChevronLeft size={14} />BACK TO HOME</Link> : "YOUR PEOPLE. YOUR PLACE."}</div>
+          <h1 data-testid="page-title">{title}</h1>
+          {subtitle && <p className="page-subtitle" data-testid="page-subtitle">{subtitle}</p>}
         </div>
-      )}
-
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        {showBack && (
-          <Link
-            to="/dashboard"
-            data-testid="back-to-dashboard"
-            className="inline-flex items-center gap-1 text-blue-900 font-semibold mb-5 hover:underline"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            Back to Dashboard
-          </Link>
-        )}
-        <div className="mb-8">
-          <h1 className="font-heading text-3xl sm:text-4xl font-bold text-slate-950 tracking-tight">{title}</h1>
-          {subtitle && <p className="mt-2 text-lg sm:text-xl text-slate-700 leading-relaxed">{subtitle}</p>}
-        </div>
-        {children}
+        <div className={`page-content ${testId || ""}-content`}>{children}</div>
+        <footer className="portal-footer"><FamilyMark testId="footer-brand-logo" /><span className="footer-private"><LockKeyhole size={12} /> For family, only.</span></footer>
       </main>
     </div>
-  );
+  </div>;
 }
 
 export function SectionCard({ title, children, testId }) {
-  return (
-    <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6" data-testid={testId}>
-      {title && <h2 className="font-heading text-2xl font-semibold text-slate-900 mb-4">{title}</h2>}
-      {children}
-    </section>
-  );
+  return <section className="section-card" data-testid={testId}>
+    {title && <h2 className="section-card-title" data-testid={testId ? `${testId}-title` : undefined}>{title}</h2>}
+    {children}
+  </section>;
 }

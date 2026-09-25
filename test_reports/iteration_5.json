@@ -1,0 +1,31 @@
+{
+  "summary": "Post-merge regression check for Fisher Family Portal. Backend: re-ran /app/backend/tests/test_disbursements.py — 35/35 pytest cases pass in 6.72s (login for all 3 roles, RBAC on /api/fund and /api/disbursements, admin create/edit + audit log, PDF receipt, member-scoped list + acknowledge + statement PDF, filters, categories, timezone PATCH valid+invalid+unauth, Stripe status/onboard-graceful/tax, resend email, invalid inputs 422, unknown member 404). Frontend Playwright regression against REACT_APP_BACKEND_URL: (1) Admin login → dashboard → /disbursements loads ledger with fund cards and Total; admin creates a $12.34 disbursement via full dialog (member/amount/date/category/method), row count went 0→7 after create (initial 0 was a locator timing artifact — rows visible after create; ledger table renders correctly); receipt PDF downloads (application/pdf) via download-receipt-{id}; audit-dialog opens and contains 'create' entries. (2) Member (victoria) login → /my-statements shows 3 scoped rows; download-statement-button downloads statement PDF; /api/fund returns 403 as expected. (3) Account: member-timezone-select saves via PATCH /api/auth/timezone (verified via /api/auth/me → America/Los_Angeles); stripe-connect-button click returns 502 gracefully and page stays on /account (no crash). (4) Business (james) sees 7 disbursements via GET; POST /api/disbursements returns 403 as expected. No functional regressions from the git merge — all 7 review items pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Disbursements dialog", "issues": ["Pre-existing (not caused by merge): Emergent visual-editor injects <span> children inside <option> elements → React hydration warning in dev console. Cosmetic dev-only, not user-facing in production build. Flagged in iteration_4."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_disbursements.py",
+    "/app/test_reports/pytest/pytest_disbursements.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Carry-over from iteration_4 (still valid, not merge-related): server.py is >1700 lines and should be split into modules (auth, disbursements, stripe, pdf, email); money uses round(amount*100) → prefer Decimal; PDF generation is sync inside async handlers → offload; Stripe onboard 502 sometimes returns non-JSON body — wrap for JSON detail; add composite index on audit_log(disbursement_id, at).",
+    "No new issues introduced by the merge."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_5.json",
+    "/app/test_reports/pytest/pytest_disbursements.xml"
+  ],
+  "success_rate": {"backend": "100% (35/35)", "frontend": "100% of critical regression flows"},
+  "test_credentials": "Admin thetruth219@gmail.com / FisherAdmin#2026; Member victoria@fisherfamily.com / Fisher#2026; Business james@fisherfamily.com / Fisher#2026 (all password login via POST /api/auth/login, httpOnly cookie access_token).",
+  "seed_data_creation": "Playwright regression added one $12.34 disbursement to the seeded ledger (row count now 7). Pytest test class creates + tears down its own TEST_-prefixed rows.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Merge preserved application code intact. All disbursement testids (disbursement-create-button, disbursement-dialog, disbursement-member/amount/date/category/method-select/input, disbursement-save-button, disbursement-ledger-table, disbursement-row-{id}, download-receipt-{id}, edit-disbursement-{id}, audit-disbursement-{id}, audit-dialog) and account testids (member-timezone-select, save-timezone-btn, stripe-connect-status-badge, stripe-connect-button) remain wired. Native <select> throughout — use page.select_option(). Stripe onboard 502 with test key sk_test_emergent is expected graceful behavior, not a bug.",
+  "rca of the issue": "N/A — no regressions found. The git-history merge did not alter functional code paths; backend pytest 35/35 and frontend Playwright critical flows all pass identically to iteration_4."
+}

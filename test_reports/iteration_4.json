@@ -1,0 +1,49 @@
+{
+  "summary": "Full backend + frontend testing of Admin Disbursements + Statements (Phase 0 timezone, Phase 1 ledger/receipt/statement/audit/acknowledge, Phase 2 Stripe onboard/status/payouts/tax). Backend: 35/35 pytest cases pass in /app/backend/tests/test_disbursements.py covering password login for all 3 seeded users, RBAC on /api/fund and /api/disbursements (member 403, biz allowed read but 403 on POST, admin full), filter by member/status/date, create with amount_cents=round(amount*100), custom category upsert, PATCH edit persists both amount and status, audit log has create+edit entries and no Mongo _id leak, PDF receipt returns application/pdf starting with %PDF, member-scoped list returns only her records, member can acknowledge own but 403 on other, member statement PDF works, invalid amount/method → 422, unknown member → 404, timezone PATCH persists and 422 on bogus zone, unauth 401 on timezone, Stripe status endpoint returns onboarding_status/payouts_enabled, Stripe onboard fails gracefully with 502 (test key env), tax endpoint returns 200, resend email accepts 200 or graceful 502. Frontend Playwright: admin login → dashboard shows nav-card-disbursements → /disbursements loads with 4 seeded rows + status badges + fund stat cards, admin creates new disbursement via dialog (member/amount/date/category/method/reason/notes/send-email toggle all wired) and row appears with Recorded badge, filter by status=recorded narrows results, edit updates amount and audit-dialog shows both Create and Edit entries with JSON diff. Member (victoria) login → dashboard shows nav-card-statements → /my-statements loads 3 rows with Total Received $3,788.88 / Paid $2,500.00 / Transactions 3, Acknowledge button turns row into 'Acknowledged' (toast 'Receipt acknowledged'), member is scoped: /api/disbursements returns 3 rows all with her member_id, /api/fund returns 403. Account page: timezone select saves via PATCH /api/auth/timezone and persists (America/Los_Angeles verified via /api/auth/me), stripe-connect-status-badge visible, stripe-connect-button click does not crash the page (502 handled gracefully). business_member (james) sees 6 disbursements across 3 members (read) and POST /api/disbursements returns 403 as expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/stripe/connect/onboard", "issue": "Returns 502 with plain-text body (not JSON) in some failure modes — FastAPI is expected to serialize HTTPException(detail=...) as JSON. Likely the underlying stripe SDK raises before FastAPI wraps it. Wrap in a broader try/except to always return {'detail': ...} JSON so the frontend toast can decode it."},
+      {"endpoint": "GET /api/disbursements", "issue": "Hard cap .to_list(2000). For heavy usage add pagination (limit/skip)."},
+      {"endpoint": "POST /api/disbursements", "issue": "body.reason and body.notes have no max_length — an admin could dump unbounded strings into the receipt PDF."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Dashboard", "issue": "nav-card-disbursements is shown to ALL roles (member/business/committee) via the shared NAV grid. Members should only see 'My Statements'; the Disbursements ledger page is admin/staff-oriented (has 'New Disbursement' button, fund stats). Recommend gating the NAV entry on isStaff/isAdmin, or repurpose /disbursements for members to redirect to /my-statements.", "selector": "[data-testid=\"nav-card-disbursements\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Disbursements dialog", "issues": ["Emergent editor injects <span> children inside <option> elements causing a React hydration warning in console: 'In HTML, <span> cannot be a child of <option>'. Purely from the visual editor overlay — cosmetic/dev-only, not user-facing in production build."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_disbursements.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_disbursements.xml"
+  ],
+  "action_items": [
+    "(Optional) Gate nav-card-disbursements on isStaff/isAdmin in Dashboard.jsx — members currently see a Disbursements card that leads to an admin-oriented page (page itself is server-scoped, so no data leak, just confusing UX).",
+    "(Optional) Wrap Stripe onboard exception handler to always return JSON body for the 502 (frontend cannot decode plain-text error into a toast)."
+  ],
+  "critical_code_review_comments": [
+    "server.py has grown to 1706 lines and now mixes auth, storage, disbursements, PDF generation, email, Stripe, cron. The prior iteration's advice to split into modules (auth.py, members.py, disbursements.py, stripe.py, pdf.py, email.py) is now more urgent.",
+    "Duplicate _iso_now() usage plus mixed datetime.utcnow() (deprecated in 3.12+) and datetime.now(timezone.utc) throughout. Standardize on now(timezone.utc).",
+    "PDF generation runs synchronously inside async handlers (reportlab is CPU-bound). Under load this will stall the event loop; offload with run_in_executor or a queue.",
+    "money is stored/read as amount_cents=round(amount*100) — using round() on IEEE-754 floats risks 1-cent drift for values like 12.99. Prefer Decimal + quantize.",
+    "Audit log entries never expire and never get an index on (disbursement_id, at). Add an index and consider TTL/archival policy.",
+    "Stripe idempotency_key is derived from disbursement_id only. If a payout fails and admin edits+retries, the same key blocks a legitimate retry. Include an attempt counter.",
+    "DISB_METHODS/DISB_STATUSES enums are enforced at write time but not exposed via GET /api/config — the frontend hard-codes the same strings; drift risk. Expose them via a single endpoint."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_disbursements.py",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "success_rate": {"backend": "100% (35/35)", "frontend": "100% of tested critical flows"},
+  "test_credentials": "Admin thetruth219@gmail.com / FisherAdmin#2026; Member victoria@fisherfamily.com / Fisher#2026; Business james@fisherfamily.com / Fisher#2026. Password login via POST /api/auth/login sets httpOnly cookie access_token.",
+  "seed_data_creation": "Backend pytest creates TEST_-prefixed disbursements & categories then cleans them up via teardown_class deleting rows from db.disbursements + db.audit_log. Playwright created two additional disbursements ($77.77 Bonus for the first member, and one edited to $88.88) — these are left in the DB as they touch the seeded ledger. Victoria acknowledged one row (persistent).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests in /app/backend/tests/test_disbursements.py use password login (not magic-link) and require the 3 seeded users to exist with the credentials above. If auth breaks, verify seed_admin() and demo-member seeding in server.py startup. Testids used on frontend: disbursement-* (see files_of_reference), statement-row-{id}, member-statement-acknowledge-button-{id}, download-receipt-{id}, download-statement-button, member-timezone-select, save-timezone-btn, stripe-connect-status-badge, stripe-connect-button, audit-dialog, disbursement-dialog. Note: the audit-dialog closes on backdrop click (not Escape) — if you need to interact with rows after opening audit, click outside the modal or use page.locator('[data-testid=\"audit-dialog\"] button:has-text(\"Close\")'). Dashboard nav-card-disbursements appears for all roles including members (not gated).",
+  "rca of the issue": "N/A — no functional bugs found. All 14 items in the review request pass. The only user-visible quirk is that /dashboard shows the Disbursements nav card to members; the page it links to is still server-scoped so no data leaks — flagged as LOW UX polish for main agent to decide."
+}

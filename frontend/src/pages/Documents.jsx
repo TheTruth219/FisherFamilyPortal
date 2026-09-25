@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FileText, Info, Lock } from "lucide-react";
+import { FileText, Info, Lock, Search } from "lucide-react";
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
 import { useAuth } from "@/context/AuthContext";
@@ -25,8 +25,11 @@ export default function Documents() {
   const { content, editMode, update, addItem, removeItem } = useContent();
   const { auth } = useAuth();
   const [filter, setFilter] = useState("All");
+  const [search, setSearch] = useState("");
   if (!content) return null;
   const docs = content.documents || [];
+  const matches = (d) => (filter === "All" || d.category === filter) && `${d.title || ""} ${d.description || ""}`.toLowerCase().includes(search.trim().toLowerCase());
+  const visibleCount = docs.filter(matches).length;
 
   return (
     <Layout title="Documents" subtitle="Shared document library for authorized family members." testId="documents-page">
@@ -37,12 +40,17 @@ export default function Documents() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="documents-toolbar">
+        <span className="documents-total" data-testid="documents-result-count">{visibleCount} document{visibleCount !== 1 ? "s" : ""} in your library</span>
+        <label className="document-search"><Search size={17} /><input type="search" aria-label="Search documents" placeholder="Find a document…" data-testid="documents-search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+      </div>
+      <div className="document-filters">
         {["All", ...CATEGORIES].map((c) => (
           <button
             key={c}
             data-testid={`doc-filter-${c.replace(/\s+/g, "-").toLowerCase()}`}
             onClick={() => setFilter(c)}
+            aria-pressed={filter === c}
             className={`px-4 py-2 min-h-[44px] rounded-lg font-semibold border-2 transition-colors ${
               filter === c ? "bg-blue-900 text-white border-blue-900" : "bg-white text-blue-900 border-blue-200 hover:border-blue-900"
             }`}
@@ -55,7 +63,7 @@ export default function Documents() {
       <SectionCard testId="documents-list">
         <div className="space-y-4">
           {docs.map((d, i) => {
-            if (filter !== "All" && d.category !== filter) return null;
+            if (!matches(d)) return null;
             return (
               <div key={d.id} className="border-2 border-slate-200 rounded-xl p-5" data-testid={`document-${i}`}>
                 <div className="flex items-start justify-between gap-3">
@@ -108,6 +116,7 @@ export default function Documents() {
           })}
         </div>
 
+        {visibleCount === 0 && <div className="document-empty" data-testid="documents-empty"><FileText size={28} className="mx-auto mb-3" /><p>No documents found. Try another search or category.</p></div>}
         <div className="mt-6">
           <AddItemButton
             testId="add-document-btn"

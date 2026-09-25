@@ -12,7 +12,7 @@ export default function Reunion() {
 
   return (
     <Layout title="Reunion" subtitle="Family reunion details, dates, registration, fees, and travel." testId="reunion-page">
-      <SectionCard title="Reunion Overview" testId="reunion-overview">
+      <SectionCard title="Together is the best place to be." testId="reunion-overview">
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <Field label="Reunion Year" path="reunion.year" />
           <Field label="Location" path="reunion.location" />

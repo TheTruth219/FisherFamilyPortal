@@ -10,6 +10,17 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get("/auth/me");
       setAuth(data);
+      // Phase 0: auto-detect timezone from browser on first login
+      if (data && !data.timezone_confirmed) {
+        const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (detected && detected !== data.timezone) {
+          try {
+            await api.patch("/auth/timezone", { timezone: detected, confirm: false });
+          } catch (err) {
+            console.error("Timezone auto-detect failed:", err);
+          }
+        }
+      }
     } catch {
       setAuth(false);
     }
@@ -22,8 +33,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       await api.post("/auth/logout");
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Logout request failed:", err);
     }
     setAuth(false);
   }, []);

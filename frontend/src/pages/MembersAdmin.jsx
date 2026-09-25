@@ -5,6 +5,7 @@ import Layout, { SectionCard } from "@/components/Layout";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const ROLES = [
   { value: "member", label: "Member" },
@@ -14,17 +15,6 @@ const ROLES = [
 ];
 
 const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
-
-const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern — New York" },
-  { value: "America/Chicago", label: "Central — Chicago" },
-  { value: "America/Denver", label: "Mountain — Denver" },
-  { value: "America/Phoenix", label: "Arizona (no DST)" },
-  { value: "America/Los_Angeles", label: "Pacific — Los Angeles" },
-  { value: "America/Anchorage", label: "Alaska — Anchorage" },
-  { value: "Pacific/Honolulu", label: "Hawaii — Honolulu" },
-  { value: "UTC", label: "UTC" },
-];
 
 export default function MembersAdmin() {
   const { auth, isAdmin } = useAuth();
@@ -207,12 +197,12 @@ export default function MembersAdmin() {
         <div className="flex items-start gap-3 mb-4">
           <Bell className="w-6 h-6 text-blue-900 flex-shrink-0 mt-0.5" />
           <p className="text-base text-slate-700 leading-relaxed">
-            When you post a new announcement, meeting, or document and save, the portal automatically emails your
-            family's distribution list. Use a group address (e.g. a Microsoft&nbsp;365 or Google group) that reaches
-            everyone — the portal sends one email to that address to protect privacy and stay within email limits.
+            When you post a new announcement, meeting, or document and save, the portal emails your
+            family's distribution list. <span className="font-semibold">Meeting reminders now go out individually</span> —
+            each family member gets their own reminder the day before a meeting, timed to their own time zone.
           </p>
         </div>
-        <label className="block text-base font-semibold text-slate-700 mb-2">Family distribution list email</label>
+        <label className="block text-base font-semibold text-slate-700 mb-2">Family distribution list email <span className="font-normal text-slate-500">(for new-content announcements)</span></label>
         <input
           data-testid="notify-list-email"
           type="email"
@@ -221,16 +211,19 @@ export default function MembersAdmin() {
           value={content?.notifications?.listEmail || ""}
           onChange={(e) => update("notifications.listEmail", e.target.value)}
         />
-        <label className="block text-base font-semibold text-slate-700 mb-2 mt-4">Reminder time zone</label>
+        <label className="block text-base font-semibold text-slate-700 mb-2 mt-4">Meeting reminder time <span className="font-normal text-slate-500">(each member's local time)</span></label>
         <select
-          data-testid="notify-timezone"
+          data-testid="notify-reminder-hour"
           className={inputClass}
-          value={content?.notifications?.timezone || "America/New_York"}
-          onChange={(e) => update("notifications.timezone", e.target.value)}
+          value={String(content?.notifications?.reminderHour ?? 9)}
+          onChange={(e) => update("notifications.reminderHour", Number(e.target.value))}
         >
-          {TIMEZONES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {Array.from({ length: 24 }, (_, h) => {
+            const label = h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`;
+            return <option key={h} value={String(h)}>{label}</option>;
+          })}
         </select>
-        <p className="text-sm text-slate-500 mt-1">Meeting reminders are sent the day before a meeting, based on this time zone.</p>
+        <p className="text-sm text-slate-500 mt-1">The day before each meeting, every member is emailed around this hour in <span className="font-semibold">their own</span> time zone (set on their Account page).</p>
         <label className="flex items-center gap-3 mt-4 text-base text-slate-800">
           <input
             type="checkbox"
@@ -239,7 +232,7 @@ export default function MembersAdmin() {
             checked={content?.notifications?.enabled ?? true}
             onChange={(e) => update("notifications.enabled", e.target.checked)}
           />
-          Send automatic notifications when new content is posted
+          Send automatic notifications (new content + meeting reminders)
         </label>
         <button
           data-testid="notify-save-btn"
@@ -323,14 +316,10 @@ export default function MembersAdmin() {
       </SectionCard>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" data-testid="edit-member-modal">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-heading text-2xl font-bold text-slate-900">Edit Member</h3>
-              <button data-testid="edit-member-close" onClick={() => setEditing(null)} className="p-2 rounded-lg hover:bg-slate-100">
-                <X className="w-6 h-6 text-slate-600" />
-              </button>
-            </div>
+        <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+          <DialogContent className="portal-modal page-content" data-testid="edit-member-modal" closeTestId="edit-member-close">
+            <DialogTitle className="font-heading text-2xl font-bold text-slate-900">Edit Member</DialogTitle>
+            <DialogDescription className="mb-5">Keep your family circle’s details up to date.</DialogDescription>
             <form onSubmit={saveEdit} className="space-y-4">
               <div>
                 <label className="block text-base font-semibold text-slate-700 mb-2">First Name</label>
@@ -354,8 +343,8 @@ export default function MembersAdmin() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </Layout>
   );
