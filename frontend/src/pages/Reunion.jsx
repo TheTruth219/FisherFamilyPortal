@@ -4,6 +4,7 @@ import { Ticket, CreditCard, BedDouble, CalendarDays, Mail } from "lucide-react"
 import Layout, { SectionCard } from "@/components/Layout";
 import { useContent, newId } from "@/context/ContentContext";
 import { EText, EArea, Field, LinkButton, AddItemButton, DeleteItemButton } from "@/components/Editable";
+import { EDatePicker } from "@/components/DatePicker";
 
 export default function Reunion() {
   const { content, addItem, removeItem } = useContent();
@@ -23,8 +24,14 @@ export default function Reunion() {
       <SectionCard title="Important Dates" testId="reunion-dates">
         <div className="grid sm:grid-cols-2 gap-4">
           <Field label="Dates" path="reunion.dates" />
-          <Field label="Registration Deadline" path="reunion.registrationDeadline" />
-          <Field label="Payment Deadline" path="reunion.paymentDeadline" />
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Registration Deadline</div>
+            <EDatePicker path="reunion.registrationDeadline" testId="reunion-registration-deadline" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-1">Payment Deadline</div>
+            <EDatePicker path="reunion.paymentDeadline" testId="reunion-payment-deadline" />
+          </div>
         </div>
       </SectionCard>
 

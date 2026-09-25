@@ -481,6 +481,43 @@ async def send_content_notification(to_email: str, items: list) -> bool:
     return await _send_email(to_email, "New in the Fisher Family Portal", html)
 
 
+def _meeting_time_display(mtg: dict, member_tz: str) -> Optional[dict]:
+    """Convert a meeting's structured start/end (in its source timezone) into the member's
+    timezone. Returns {'member','source','same'} display strings, or None if unstructured."""
+    date_s = (mtg.get("meetingDate") or "").strip()
+    start_s = (mtg.get("startTime") or "").strip()
+    if not date_s or not start_s:
+        return None
+    from zoneinfo import ZoneInfo
+    try:
+        src = ZoneInfo(mtg.get("timezone") or "America/Chicago")
+        mem = ZoneInfo(member_tz or "America/Chicago")
+        d = datetime.strptime(date_s, "%Y-%m-%d").date()
+        sh, sm = (int(x) for x in start_s.split(":")[:2])
+        start_src = datetime(d.year, d.month, d.day, sh, sm, tzinfo=src)
+        end_s = (mtg.get("endTime") or "").strip()
+        end_src = None
+        if end_s:
+            eh, em = (int(x) for x in end_s.split(":")[:2])
+            end_src = datetime(d.year, d.month, d.day, eh, em, tzinfo=src)
+            if end_src <= start_src:
+                end_src = start_src + timedelta(hours=1)
+    except Exception:
+        return None
+
+    def span(a, b):
+        if b and b.date() == a.date():
+            return f'{a.strftime("%A, %B %-d · %-I:%M %p")}–{b.strftime("%-I:%M %p")} {a.strftime("%Z")}'
+        if b:
+            return f'{a.strftime("%A, %B %-d · %-I:%M %p %Z")} – {b.strftime("%A, %B %-d · %-I:%M %p %Z")}'
+        return a.strftime("%A, %B %-d · %-I:%M %p %Z")
+
+    member_str = span(start_src.astimezone(mem), end_src.astimezone(mem) if end_src else None)
+    source_str = span(start_src.astimezone(src), end_src.astimezone(src) if end_src else None)
+    return {"member": member_str, "source": source_str, "same": member_str == source_str}
+
+
+
 async def send_meeting_reminder(to_email: str, mtg: dict, member: Optional[dict] = None) -> bool:
     base = os.environ.get("FRONTEND_URL", "").rstrip("/")
     if not base.startswith("https://") or "@" not in (to_email or ""):
@@ -496,10 +533,17 @@ async def send_meeting_reminder(to_email: str, mtg: dict, member: Optional[dict]
         v = (value or "").strip()
         return f'<p style="font-size:16px;margin:4px 0"><strong>{label}:</strong> {escape(v)}</p>' if v else ""
 
-    rows = (row("Date", mtg.get("date") or mtg.get("meetingDate"))
-            + row("Time", mtg.get("time"))
-            + row("Who should attend", mtg.get("attendees"))
-            + row("Purpose", mtg.get("purpose")))
+    time_disp = _meeting_time_display(mtg, (member or {}).get("timezone") or "")
+    if time_disp:
+        rows = (row("Your local time", time_disp["member"])
+                + ("" if time_disp["same"] else row("Meeting time (host)", time_disp["source"]))
+                + row("Who should attend", mtg.get("attendees"))
+                + row("Purpose", mtg.get("purpose")))
+    else:
+        rows = (row("Date", mtg.get("date") or mtg.get("meetingDate"))
+                + row("Time", mtg.get("time"))
+                + row("Who should attend", mtg.get("attendees"))
+                + row("Purpose", mtg.get("purpose")))
     tz_note = (f'This reminder reached you the day before the meeting in your time zone ({tzname}).'
                if tzname else 'This reminder reached you the day before the meeting in your time zone.')
     html = (
@@ -567,6 +611,98 @@ async def process_meeting_reminders():
                 sent += 1
             logger.info(f"Meeting reminder fan-out {key} ok={ok}")
     logger.info(f"Meeting reminders: {sent} email(s) sent across {len(members)} active member(s)")
+
+
+# ---------- MS Teams meeting invites (.ics) ----------
+class MeetingInvite(BaseModel):
+    name: str = Field(..., max_length=200)
+    meetingDate: str  # YYYY-MM-DD
+    startTime: str    # HH:MM (24h)
+    endTime: str      # HH:MM (24h)
+    timezone: str
+    teamsLink: str = Field(..., max_length=2000)
+    purpose: Optional[str] = ""
+    agenda: Optional[str] = ""
+
+
+def _ics_escape(text: str) -> str:
+    return (text or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def build_meeting_ics(inv: dict) -> str:
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(inv.get("timezone") or "America/Chicago")
+    except Exception:
+        tz = ZoneInfo("America/Chicago")
+    d = datetime.strptime(inv["meetingDate"], "%Y-%m-%d").date()
+    sh, sm = (int(x) for x in inv["startTime"].split(":")[:2])
+    eh, em = (int(x) for x in inv["endTime"].split(":")[:2])
+    start_local = datetime(d.year, d.month, d.day, sh, sm, tzinfo=tz)
+    end_local = datetime(d.year, d.month, d.day, eh, em, tzinfo=tz)
+    if end_local <= start_local:
+        end_local = start_local + timedelta(hours=1)
+
+    def z(dt):
+        return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    link = (inv.get("teamsLink") or "").strip()
+    desc = []
+    if inv.get("purpose"):
+        desc.append(f"Purpose: {inv['purpose']}")
+    if inv.get("agenda"):
+        desc.append(f"Agenda: {inv['agenda']}")
+    if link:
+        desc.append(f"Join Microsoft Teams meeting: {link}")
+    lines = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Fisher Family Portal//EN",
+        "CALSCALE:GREGORIAN", "METHOD:REQUEST", "BEGIN:VEVENT",
+        f"UID:{uuid.uuid4()}@fisherfamilyportal", f"DTSTAMP:{now}",
+        f"DTSTART:{z(start_local)}", f"DTEND:{z(end_local)}",
+        f"SUMMARY:{_ics_escape(inv.get('name') or 'Family Meeting')}",
+        f"DESCRIPTION:{_ics_escape(chr(10).join(desc))}",
+    ]
+    if link:
+        lines.append("LOCATION:Microsoft Teams Meeting")
+        lines.append(f"URL:{link}")
+    lines += ["STATUS:CONFIRMED", "SEQUENCE:0", "END:VEVENT", "END:VCALENDAR"]
+    return "\r\n".join(lines) + "\r\n"
+
+
+async def send_meeting_invite(to_email: str, inv: dict) -> bool:
+    if "@" not in (to_email or ""):
+        logger.error("Meeting invite skipped: bad recipient")
+        return False
+    name = escape(inv.get("name") or "Family Meeting")
+    link = (inv.get("teamsLink") or "").strip()
+    tzname = escape(inv.get("timezone") or "")
+    try:
+        nice_date = datetime.strptime(inv["meetingDate"], "%Y-%m-%d").strftime("%A, %B %-d, %Y")
+    except Exception:
+        nice_date = inv.get("meetingDate", "")
+    time_str = escape(f"{inv.get('startTime', '')}\u2013{inv.get('endTime', '')} ({tzname})")
+    join_btn = (f'<p style="margin:24px 0"><a href="{escape(link)}" '
+                f'style="background:#4b53bc;color:#fff;padding:14px 28px;border-radius:8px;'
+                f'text-decoration:none;font-size:16px;font-weight:bold">Join Microsoft Teams meeting</a></p>'
+                if link else "")
+    rows = (f'<p style="font-size:16px;margin:4px 0"><strong>Date:</strong> {escape(nice_date)}</p>'
+            f'<p style="font-size:16px;margin:4px 0"><strong>Time:</strong> {time_str}</p>')
+    if inv.get("purpose"):
+        rows += f'<p style="font-size:16px;margin:4px 0"><strong>Purpose:</strong> {escape(inv["purpose"])}</p>'
+    html = (
+        f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<p style="font-size:16px">Hello Fisher family,</p>'
+        f'<p style="font-size:16px">You are invited to <strong>{name}</strong>.</p>'
+        f'{rows}{join_btn}'
+        f'<p style="font-size:14px;color:#475569">A calendar invitation is attached (invite.ics) — open it to add this meeting to your calendar.</p>'
+        f'<p style="font-size:12px;color:#94a3b8">Sent by {escape(EMAIL_FROM_NAME)}.</p>'
+        f'</td></tr></table>'
+    )
+    ics = build_meeting_ics(inv)
+    attachment = {"filename": "invite.ics", "content": base64.b64encode(ics.encode("utf-8")).decode()}
+    return await _send_email(to_email, f"Invitation: {name} \u2014 {nice_date}", html, attachments=[attachment])
+
 
 
 # ==================== Disbursements · Statements · Stripe Connect · Timezone ====================

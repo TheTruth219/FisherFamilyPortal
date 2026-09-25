@@ -58,6 +58,17 @@ See /app/memory/test_credentials.md (admin thetruth219@gmail.com / FisherAdmin#2
 - Added a second admin for prod: stephen@cefisherfamily.org (name "Stephen Fisher", role admin). Seeded idempotently at startup in server.py from new backend/.env keys PROD_ADMIN_EMAIL / PROD_ADMIN_PASSWORD, using the existing bcrypt hash_password. Idempotent: creates if absent; promotes to admin/active and sets password_hash only if missing (won't clobber a later self-set password). Credentials in /app/memory/test_credentials.md.
 - Verified: curl login 200 + role=admin + /api/members 200; browser e2e iteration_15.json 100% (admin nav, /members, /disbursements, session persistence, logout) with no regressions. NOTE: prod has its own DB, so this admin materializes when the prod backend boots — (re)deploy to apply.
 
+## MS Teams invites + date pickers + meeting documents (2026-06)
+- **Teams meeting invites (manual approach, no MS Graph/IT setup):** admin Meetings editor (edit mode) has a "Microsoft Teams meeting" box — paste Teams join link + pick date + start/end time + timezone, then "Send Teams Invite" emails a proper calendar invite (.ics attachment, METHOD:REQUEST, correct UTC conversion) with a "Join Microsoft Teams meeting" button to the family distribution-list email (Members→Notifications). Backend: POST /api/meetings/invite (require_admin), core.MeetingInvite / build_meeting_ics / send_meeting_invite. Validates https Teams link + that a list email is configured. View mode shows a "Join Microsoft Teams meeting" button when a link is saved.
+- **Meeting documents sync:** attaching a file to a meeting (MeetingAttachments) uploads via /files/upload and adds it to BOTH the meeting card AND content.documents (category "Meetings"); removing unlinks from both. Persisted on Save.
+- **Calendar date pickers (shadcn Calendar+Popover, YYYY-MM-DD):** new components/DatePicker.jsx exports DatePicker (presentational) + EDatePicker (content-bound). Applied to Meetings (meetingDate), Reunion registration/payment deadlines, and the Disbursement create-form date. Backward-compatible: non-ISO legacy values still display.
+- Verified: backend invite curl (bad link→400, valid→200 + .ics sent to delivered@resend.dev); frontend e2e iteration_16.json 100% (7/7 flows incl attachment sync + member read-only regression).
+- Backlog notes from QA (non-blocking): add server-side integrity for meeting↔document link (client-side dual-write can leave a dangling ref if the Documents entry is deleted directly); consider orphan-upload cleanup on discard; optional admin delete/archive for disbursement rows.
+
+## Per-member timezone in reminder emails (2026-06)
+- Reminder fan-out now converts a meeting's structured schedule (meetingDate + startTime + endTime + source timezone, captured by the Teams scheduler) into EACH member's own timezone. Email shows "Your local time: Wednesday, July 15 · 7:00 PM–8:00 PM EDT" and, when the host zone differs, a "Meeting time (host)" line. Falls back to the old free-form `time` text for meetings without structured times. Helper: core._meeting_time_display; used in send_meeting_reminder.
+- Verified: conversion unit-checked across Chicago/NY/LA/Honolulu (6PM CDT → 7PM EDT / 4PM PDT / 1PM HST), unstructured fallback returns None, reminder fan-out test green, ruff F clean.
+
 ## Next Tasks
 - Await user review. Optionally: real Stripe Connect key for live payouts; full 1099 generation.
 

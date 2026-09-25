@@ -3,6 +3,7 @@ from fastapi import BackgroundTasks, Depends, HTTPException
 from core import (
     CONTENT_ID,
     ContentUpdate,
+    MeetingInvite,
     all_notifiable_ids,
     api_router,
     collect_notifiable,
@@ -12,6 +13,7 @@ from core import (
     require_admin,
     sample_content,
     send_content_notification,
+    send_meeting_invite,
 )
 
 @api_router.get("/content")
@@ -55,3 +57,20 @@ async def load_sample(user: dict = Depends(require_admin)):
                   "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True)
     return {"ok": True}
+
+
+
+@api_router.post("/meetings/invite")
+async def send_teams_meeting_invite(body: MeetingInvite, user: dict = Depends(require_admin)):
+    doc = await db.settings.find_one({"_id": CONTENT_ID})
+    notif = ((doc or {}).get("content", {}) or {}).get("notifications") or {}
+    list_email = (notif.get("listEmail") or "").strip()
+    if "@" not in list_email:
+        raise HTTPException(status_code=400, detail="Set the family distribution-list email in Members \u2192 Notifications before sending invites.")
+    inv = body.model_dump()
+    if not inv.get("teamsLink", "").strip().lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Enter a valid Microsoft Teams join link (starting with https://).")
+    ok = await send_meeting_invite(list_email, inv)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invite could not be sent. Check the email configuration and try again.")
+    return {"ok": True, "sent_to": list_email}

@@ -1,0 +1,31 @@
+{
+  "summary": "End-to-end frontend verification of two new features: (a) shadcn calendar date picker on Disbursements, Reunion (registration/payment deadlines) and Meetings, and (b) Microsoft Teams meeting invite scheduler + attachment-sync between Meetings and Documents. All 7 requested flows pass against REACT_APP_BACKEND_URL using both admin (thetruth219@gmail.com) and member (victoria@fisherfamily.com) accounts. Cleanup executed: temporary teams link cleared, notify-list-email restored to empty, uploaded test attachment removed from both meeting and Documents. One residual TEST_ disbursement remains ($1.23, Portal Administrator, 2026-09-15) because the UI exposes no admin delete for disbursements (only edit/status).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verified_flows": [
+    "TEST 1 — /disbursements: disbursement-date-input is now a <button> (shadcn Calendar popover), picks 'September 15th, 2026'; created disbursement with send_email=false persists in ledger with amount $1.23 and date 2026-09-15.",
+    "TEST 2 — /reunion edit mode: reunion-registration-deadline and reunion-payment-deadline are calendar buttons; picking days 20/25 and saving persists across reload as 'September 20th, 2026' / 'September 25th, 2026'.",
+    "TEST 3 — /meetings edit mode with NO notify-list-email set: filling teamsLink https://teams.microsoft.com/... + date + start/end + timezone and clicking send-teams-invite-0 produces error toast 'Set the family distribution-list email in Members → Notifications before sending invites.' (backend responded 400).",
+    "TEST 4 — /meetings success path: setting notify-list-email=delivered@resend.dev via notify-save-btn (PUT /content 200 and persisted after reload) then clicking send-teams-invite-0 returned POST /api/meetings/invite 200 with body {ok:true,sent_to:'delivered@resend.dev'} and toast 'Calendar invite sent to delivered@resend.dev'.",
+    "TEST 5 — join-meeting-0 renders in view mode after Teams link save, href points to https://teams.microsoft.com/l/meetup-join/test123.",
+    "TEST 6 — Attachment sync: uploading via meeting-0-attachment-upload adds meeting-0-attachment-<id>, save persists; /documents (filter doc-filter-meetings) shows the same file; removing via remove-meeting-0-attachment-<id> and saving removes it from /documents too.",
+    "TEST 7 — Member regression (victoria@fisherfamily.com): /meetings and /reunion render read-only (no edit-mode-toggle, no teams-scheduler, reunion deadlines shown formatted 'September 20th, 2026'), and /disbursements does not expose disbursement-create-button."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Optional cleanup: consider adding an admin-only delete or archive action to the Disbursement ledger row so test-created rows can be removed via UI (currently only edit/status flows exist). One residual TEST_ row remains: Portal Administrator, 2026-09-15, Bonus, $1.23, Recorded — safe to leave or delete directly via DB."
+  ],
+  "critical_code_review_comments": [
+    "DatePicker popover uses shadcn/react-day-picker but day buttons don't expose stable data-testid; automated tests must rely on visible day-number text. Consider adding testId prop that decorates day cells for deterministic e2e.",
+    "In Meetings.jsx TeamsScheduler, teamsLink validation is /^https?:\\/\\//i (any URL). Backend routes_content.py restricts to https teams link; UI could mirror this and surface hint earlier.",
+    "Attachment sync writes both meeting.attachments and content.documents client-side. If the admin edits/removes the Documents entry directly (e.g., via /documents delete), the meeting still keeps a dangling attachment. Consider centralizing this relation server-side or add integrity check on save.",
+    "MeetingAttachments upload success toast tells user to 'Save' but a user leaving without saving would leak an uploaded file with no reference (already saved to /files/upload). Consider cleaning orphan uploads on discard, or auto-save after upload."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped; endpoint already curl-verified by main agent)", "frontend": "100% (7/7 flows)"},
+  "test_credentials": "Admin: thetruth219@gmail.com / FisherAdmin#2026. Member: victoria@fisherfamily.com / Fisher#2026.",
+  "seed_data_creation": "One residual TEST disbursement (Portal Administrator, $1.23 Bonus, 2026-09-15, Recorded). No other seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature complete. When automating shadcn calendar clicks, opening the popover and selecting `page.locator('button[name=\"day\"]').filter(has_text=\"18\").first` inside the last [role='dialog'] popover is reliable. For text inputs bound to ContentContext (like notify-list-email or meeting-teams-link-<i>), Playwright .fill() reliably marks dirty; note the Members page has its own notify-save-btn (not the header save-changes-btn). The POST /api/meetings/invite endpoint returns 400 when notifications.listEmail is empty and 200 with {ok:true,sent_to} when set; .ics is emailed via Resend to delivered@resend.dev (Resend's test inbox)."
+}

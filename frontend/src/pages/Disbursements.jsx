@@ -8,6 +8,7 @@ import Layout, { SectionCard } from "@/components/Layout";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/DatePicker";
 
 const money = (c = 0) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const METHODS = ["check", "zelle", "wire", "ach", "cash", "stripe"];
@@ -210,7 +211,7 @@ export default function Disbursements() {
               <label><span className="text-sm font-semibold text-slate-700">Amount (USD)</span>
                 <input data-testid="disbursement-amount-input" type="number" step="0.01" min="0" className={inputCls} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></label>
               <label><span className="text-sm font-semibold text-slate-700">Date</span>
-                <input data-testid="disbursement-date-input" type="date" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required /></label>
+                <DatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} testId="disbursement-date-input" className="w-full mt-1" /></label>
             </div>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <label><span className="text-sm font-semibold text-slate-700">Category</span>
